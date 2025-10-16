@@ -1,0 +1,15 @@
+C:\Users\Daniel\source\repos\TaskManager\Service\bin\Debug\net8.0\AppServices.deps.json
+C:\Users\Daniel\source\repos\TaskManager\Service\bin\Debug\net8.0\AppServices.dll
+C:\Users\Daniel\source\repos\TaskManager\Service\bin\Debug\net8.0\AppServices.pdb
+C:\Users\Daniel\source\repos\TaskManager\Service\bin\Debug\net8.0\Domain.dll
+C:\Users\Daniel\source\repos\TaskManager\Service\bin\Debug\net8.0\Domain.pdb
+C:\Users\Daniel\source\repos\TaskManager\Service\obj\Debug\net8.0\AppServices.csproj.AssemblyReference.cache
+C:\Users\Daniel\source\repos\TaskManager\Service\obj\Debug\net8.0\AppServices.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Daniel\source\repos\TaskManager\Service\obj\Debug\net8.0\AppServices.AssemblyInfoInputs.cache
+C:\Users\Daniel\source\repos\TaskManager\Service\obj\Debug\net8.0\AppServices.AssemblyInfo.cs
+C:\Users\Daniel\source\repos\TaskManager\Service\obj\Debug\net8.0\AppServices.csproj.CoreCompileInputs.cache
+C:\Users\Daniel\source\repos\TaskManager\Service\obj\Debug\net8.0\AppServi.98DF7DA4.Up2Date
+C:\Users\Daniel\source\repos\TaskManager\Service\obj\Debug\net8.0\AppServices.dll
+C:\Users\Daniel\source\repos\TaskManager\Service\obj\Debug\net8.0\refint\AppServices.dll
+C:\Users\Daniel\source\repos\TaskManager\Service\obj\Debug\net8.0\AppServices.pdb
+C:\Users\Daniel\source\repos\TaskManager\Service\obj\Debug\net8.0\ref\AppServices.dll
