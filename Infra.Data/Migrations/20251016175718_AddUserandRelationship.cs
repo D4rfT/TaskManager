@@ -5,7 +5,7 @@
 namespace Infra.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class AddUserAndRelationships : Migration
+    public partial class AddUserandRelationship : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

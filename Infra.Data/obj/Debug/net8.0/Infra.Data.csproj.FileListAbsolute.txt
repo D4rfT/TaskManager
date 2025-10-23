@@ -15,3 +15,4 @@ C:\Users\Daniel\source\repos\TaskManager\Infra.Data\obj\Debug\net8.0\refint\Infr
 C:\Users\Daniel\source\repos\TaskManager\Infra.Data\obj\Debug\net8.0\Infra.Data.pdb
 C:\Users\Daniel\source\repos\TaskManager\Infra.Data\obj\Debug\net8.0\Infra.Data.genruntimeconfig.cache
 C:\Users\Daniel\source\repos\TaskManager\Infra.Data\obj\Debug\net8.0\ref\Infra.Data.dll
+C:\Users\Daniel\source\repos\TaskManager\Infra.Data\obj\Debug\net8.0\Infra.Data.sourcelink.json

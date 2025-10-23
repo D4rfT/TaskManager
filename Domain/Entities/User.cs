@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Security.Cryptography;
 using TaskManager.Domain.Entities;
 
 namespace Domain.Entities
@@ -30,6 +26,24 @@ namespace Domain.Entities
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = DateTime.UtcNow;
             Tasks = new List<TaskItem>(); 
+        }
+
+        public void CreatePasswordHash(string password)
+        {
+            using (var hmac = new HMACSHA512())
+            {
+                PasswordSalt = Convert.ToBase64String(hmac.Key);
+                PasswordHash = Convert.ToBase64String(hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password)));
+            }
+        }
+
+        public bool VerifyPasswordHash(string password)
+        {
+            using (var hmac = new HMACSHA512(Convert.FromBase64String(PasswordSalt)))
+            {
+                var computedHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+                return computedHash.SequenceEqual(Convert.FromBase64String(PasswordHash));
+            }
         }
 
     }

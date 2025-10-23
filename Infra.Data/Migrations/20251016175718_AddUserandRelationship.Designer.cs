@@ -11,8 +11,8 @@ using TaskManager.Infra.Data.Context;
 namespace Infra.Data.Migrations
 {
     [DbContext(typeof(TaskContext))]
-    [Migration("20251015185250_AddUserAndRelationships")]
-    partial class AddUserAndRelationships
+    [Migration("20251016175718_AddUserandRelationship")]
+    partial class AddUserandRelationship
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

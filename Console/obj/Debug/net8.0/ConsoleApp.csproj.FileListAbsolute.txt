@@ -87,3 +87,4 @@ C:\Users\Daniel\source\repos\TaskManager\Console\obj\Debug\net8.0\refint\Console
 C:\Users\Daniel\source\repos\TaskManager\Console\obj\Debug\net8.0\ConsoleApp.pdb
 C:\Users\Daniel\source\repos\TaskManager\Console\obj\Debug\net8.0\ConsoleApp.genruntimeconfig.cache
 C:\Users\Daniel\source\repos\TaskManager\Console\obj\Debug\net8.0\ref\ConsoleApp.dll
+C:\Users\Daniel\source\repos\TaskManager\Console\obj\Debug\net8.0\ConsoleApp.sourcelink.json
