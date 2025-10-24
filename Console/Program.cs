@@ -3,6 +3,8 @@ using AppServices.Services;
 using Infra.Data.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.VisualBasic;
+using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -50,27 +52,6 @@ namespace TaskManager.ConsoleApp
                         break;
                 }
             }
-
-            // SE CHEGOU AQUI, USUÁRIO ESTÁ AUTENTICADO
-            // CONFIGURAR TOKEN PARA TODAS AS REQUISIÇÕES
-            httpClient.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", token);
-
-
-            var services = new ServiceCollection();
-
-            services.AddDbContext<TaskContext>(options =>
-            {
-                var dbPath = @"C:\Users\Daniel\source\repos\TaskManager\Infra.Data\bin\Debug\net8.0\TaskManager.db";
-                options.UseSqlite($"Data Source={dbPath}");
-            });
-
-            services.AddScoped<ITaskRepository, TaskRepository>();
-            services.AddScoped<ITaskService, TaskService>();
-
-            var serviceProvider = services.BuildServiceProvider();
-            var taskService = serviceProvider.GetRequiredService<ITaskService>();
-
             bool continueRunning = true;
 
             while (continueRunning)
@@ -134,7 +115,7 @@ namespace TaskManager.ConsoleApp
 
             Console.WriteLine("Saindo do Task Manager...");
         }
-        static async Task CreateTaskAsync(ITaskService taskService)
+        static async Task CreateTaskAsync(HttpClient httpClient)
         {
             Console.Clear();
             Console.WriteLine("=== CRIAR NOVA TASK ===");
@@ -150,57 +131,105 @@ namespace TaskManager.ConsoleApp
 
             try
             {
-                Console.WriteLine($"Tentando criar: '{title}', '{description}', '{dateInput}'");
 
                 if (DateTime.TryParse(dateInput, out DateTime dueDate))
                 {
-                    Console.WriteLine($"Data parseada: {dueDate}");
-                    var task = await taskService.CreateTaskAsync(title, description, dueDate);
-                    Console.WriteLine($"[OK] Task criada com ID: {task.Id}");
-                }
-                else
-                {
-                    Console.WriteLine("[ERRO] Data inválida!");
+                    // Criar DTO para a requisição
+                    var createTaskRequest = new { Title = title, Description = description, DueDate = dueDate };
+                    var json = JsonSerializer.Serialize(createTaskRequest);
+                    var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                    // Fazer requisição POST para a API
+                    var response = await httpClient.PostAsync("/api/tasks", content);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var responseContent = await response.Content.ReadAsStringAsync();
+                        var responseObj = JsonSerializer.Deserialize<JsonElement>(responseContent);
+
+                        if (responseObj.TryGetProperty("id", out var idProperty) &&
+                            idProperty.ValueKind == JsonValueKind.Number)
+                        {
+                            Console.WriteLine($"[OK] Task criada com ID: {idProperty.GetInt32()}");
+                        }
+                        else
+                        {
+                            Console.WriteLine("[OK] Task criada com sucesso!");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("[ERRO] Data inválida!");
+                    }
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[ERRO] {ex.Message}");
-                Console.WriteLine($"Tipo do erro: {ex.GetType().Name}");
-
-                // Mostrar TODOS os inner exceptions em cascata
-                Exception current = ex;
-                int level = 0;
-                while (current != null)
-                {
-                    Console.WriteLine($"Erro nível {level}: {current.GetType().Name}: {current.Message}");
-                    current = current.InnerException;
-                    level++;
-                }
             }
-
             Console.WriteLine("\nPressione qualquer tecla para continuar...");
             Console.ReadKey();
         }
-       
 
-        static async Task ListAllTasksAsync(ITaskService taskService)
+
+        static async Task ListAllTasksAsync(HttpClient httpClient)
         {
             Console.Clear();
             Console.WriteLine("=== TODAS AS TASKS ===");
 
             try
             {
-                var tasks = await taskService.GetAllTasksAsync();
+                var response = await httpClient.GetAsync("/api/tasks");
 
-                foreach (var task in tasks)
+                if (response.IsSuccessStatusCode)
                 {
-                    var status = task.IsCompleted ? "CONCLUÍDA" : "PENDENTE";
-                    var dueDate = task.DueDate.ToString("dd/MM/yyyy");
-                    Console.WriteLine($"[{task.Id}] {task.Title} - {status} - Vence: {dueDate}");
-                }
+                    var responseContent = await response.Content.ReadAsStringAsync();
+                    var jsonDocument = JsonDocument.Parse(responseContent);
 
-                Console.WriteLine($"\nTotal: {tasks.Count()} task(s)");
+                    int taskCount = 0;
+
+                    // Verificar se é um array e percorrer
+                    if (jsonDocument.RootElement.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var taskElement in jsonDocument.RootElement.EnumerateArray())
+                        {
+                            if (taskElement.TryGetProperty("id", out var idProp) &&
+                                taskElement.TryGetProperty("title", out var titleProp) &&
+                                taskElement.TryGetProperty("isCompleted", out var completedProp) &&
+                                taskElement.TryGetProperty("dueDate", out var dueDateProp))
+                            {
+                                var id = idProp.GetInt32();
+                                var title = titleProp.GetString() ?? "Sem título";
+                                var isCompleted = completedProp.GetBoolean();
+                                var dueDate = dueDateProp.GetDateTime();
+
+                                var status = isCompleted ? "CONCLUÍDA" : "PENDENTE";
+                                var dueDateStr = dueDate.ToString("dd/MM/yyyy");
+
+                                Console.WriteLine($"[{id}] {title} - {status} - Vence: {dueDateStr}");
+                                taskCount++;
+                            }
+                        }
+
+                        if (taskCount == 0)
+                        {
+                            Console.WriteLine("Nenhuma task encontrada.");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"\nTotal: {taskCount} task(s)");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Formato de resposta inválido.");
+                    }
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[ERRO] {response.StatusCode}: {errorContent}");
+                }
             }
             catch (Exception ex)
             {
@@ -211,7 +240,7 @@ namespace TaskManager.ConsoleApp
             Console.ReadKey();
         }
 
-        static async Task GetTaskByIdAsync(ITaskService taskService)
+        static async Task GetTaskByIdAsync(HttpClient httpClient)
         {
             Console.Clear();
             Console.WriteLine("=== BUSCAR TASK POR ID ===");
@@ -223,23 +252,63 @@ namespace TaskManager.ConsoleApp
             {
                 if (int.TryParse(idInput, out int id))
                 {
-                    var task = await taskService.GetTaskByIdAsync(id);
+                    var response = await httpClient.GetAsync($"/api/tasks/{id}");
 
-                    Console.WriteLine($"\n--- DETALHES DA TASK {task.Id} ---");
-                    Console.WriteLine($"Título: {task.Title}");
-                    Console.WriteLine($"Descrição: {task.Description}");
-                    Console.WriteLine($"Status: {(task.IsCompleted ? "CONCLUÍDA" : "PENDENTE")}");
-                    Console.WriteLine($"Data de Vencimento: {task.DueDate:dd/MM/yyyy}");
-                    Console.WriteLine($"Criada em: {task.CreatedAt:dd/MM/yyyy HH:mm}");
-
-                    if (task.UpdatedAt.HasValue)
+                    if (response.IsSuccessStatusCode)
                     {
-                        Console.WriteLine($"Atualizada em: {task.UpdatedAt.Value:dd/MM/yyyy HH:mm}");
+                        var responseContent = await response.Content.ReadAsStringAsync();
+                        var jsonDocument = JsonDocument.Parse(responseContent);
+                        var taskElement = jsonDocument.RootElement;
+
+                        // Extrair propriedades do JSON
+                        if (taskElement.TryGetProperty("id", out var idProp) &&
+                            taskElement.TryGetProperty("title", out var titleProp) &&
+                            taskElement.TryGetProperty("description", out var descProp) &&
+                            taskElement.TryGetProperty("isCompleted", out var completedProp) &&
+                            taskElement.TryGetProperty("dueDate", out var dueDateProp) &&
+                            taskElement.TryGetProperty("createdAt", out var createdAtProp))
+                        {
+                            var taskId = idProp.GetInt32();
+                            var title = titleProp.GetString() ?? "Sem título";
+                            var description = descProp.GetString() ?? "Sem descrição";
+                            var isCompleted = completedProp.GetBoolean();
+                            var dueDate = dueDateProp.GetDateTime();
+                            var createdAt = createdAtProp.GetDateTime();
+
+                            Console.WriteLine($"\n--- DETALHES DA TASK {taskId} ---");
+                            Console.WriteLine($"Título: {title}");
+                            Console.WriteLine($"Descrição: {description}");
+                            Console.WriteLine($"Status: {(isCompleted ? "CONCLUÍDA" : "PENDENTE")}");
+                            Console.WriteLine($"Data de Vencimento: {dueDate:dd/MM/yyyy}");
+                            Console.WriteLine($"Criada em: {createdAt:dd/MM/yyyy HH:mm}");
+
+                            // Verificar se tem updatedAt (pode ser null)
+                            if (taskElement.TryGetProperty("updatedAt", out var updatedAtProp) &&
+                                updatedAtProp.ValueKind != JsonValueKind.Null)
+                            {
+                                var updatedAt = updatedAtProp.GetDateTime();
+                                Console.WriteLine($"Atualizada em: {updatedAt:dd/MM/yyyy HH:mm}");
+                            }
+
+                            // Verificar se está atrasada (não concluída e data passada)
+                            if (!isCompleted && dueDate < DateTime.UtcNow)
+                            {
+                                Console.WriteLine("[ATRASADA] Esta task está atrasada!");
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine("[ERRO] Formato de task inválido na resposta.");
+                        }
                     }
-
-                    if (task.IsOverdue())
+                    else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                     {
-                        Console.WriteLine("[ATRASADA] Esta task está atrasada!");
+                        Console.WriteLine($"[ERRO] Task com ID {id} não encontrada.");
+                    }
+                    else
+                    {
+                        var errorContent = await response.Content.ReadAsStringAsync();
+                        Console.WriteLine($"[ERRO] {response.StatusCode}: {errorContent}");
                     }
                 }
                 else
