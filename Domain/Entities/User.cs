@@ -5,13 +5,12 @@ namespace Domain.Entities
 {
     public class User
     {
-
         public int Id { get; private set; }
         public string UserName { get; private set; }
         public string Email { get; private set; }
         public string PasswordHash { get; private set; }
         public string PasswordSalt { get; private set; }
-        public DateTime CreatedAt {get; private set;}
+        public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
         public ICollection<TaskItem> Tasks { get; private set; }
 
@@ -25,7 +24,7 @@ namespace Domain.Entities
             PasswordSalt = string.Empty;
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = DateTime.UtcNow;
-            Tasks = new List<TaskItem>(); 
+            Tasks = new List<TaskItem>();
         }
 
         public void CreatePasswordHash(string password)
@@ -45,6 +44,5 @@ namespace Domain.Entities
                 return computedHash.SequenceEqual(Convert.FromBase64String(PasswordHash));
             }
         }
-
     }
 }

@@ -1,9 +1,5 @@
-﻿using AppServices.Interfaces;
-using AppServices.Services;
-using Infra.Data.Repositories;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.VisualBasic;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -11,16 +7,14 @@ using System.Text.Json;
 using TaskManager.Domain.Interfaces;
 using TaskManager.Infra.Data.Context;
 
-
 namespace TaskManager.ConsoleApp
 {
     public class Program
     {
         static async Task Main(string[] args)
         {
-
             var httpClient = new HttpClient();
-            httpClient.BaseAddress = new Uri("https://localhost:7000"); // URL da sua API
+            httpClient.BaseAddress = new Uri("https://localhost:7198");
             string token = string.Empty;
 
             // TELA DE LOGIN/REGISTRO
@@ -39,7 +33,14 @@ namespace TaskManager.ConsoleApp
                 switch (authOption)
                 {
                     case "1":
-                        authenticated = await HandleLoginAsync(httpClient, ref token);
+                        var (success, newToken) = await HandleLoginAsync(httpClient);
+                        if (success)
+                        {
+                            token = newToken;
+                            httpClient.DefaultRequestHeaders.Authorization =
+                                new AuthenticationHeaderValue("Bearer", token);
+                            authenticated = true;
+                        }
                         break;
                     case "2":
                         await HandleRegisterAsync(httpClient);
@@ -52,6 +53,7 @@ namespace TaskManager.ConsoleApp
                         break;
                 }
             }
+
             bool continueRunning = true;
 
             while (continueRunning)
@@ -99,7 +101,6 @@ namespace TaskManager.ConsoleApp
                         await DeleteTaskAsync(httpClient);
                         break;
                     case "9":
-                        // Logout - limpa o token e sai do loop
                         httpClient.DefaultRequestHeaders.Authorization = null;
                         continueRunning = false;
                         break;
@@ -115,6 +116,7 @@ namespace TaskManager.ConsoleApp
 
             Console.WriteLine("Saindo do Task Manager...");
         }
+
         static async Task CreateTaskAsync(HttpClient httpClient)
         {
             Console.Clear();
@@ -131,15 +133,12 @@ namespace TaskManager.ConsoleApp
 
             try
             {
-
                 if (DateTime.TryParse(dateInput, out DateTime dueDate))
                 {
-                    // Criar DTO para a requisição
                     var createTaskRequest = new { Title = title, Description = description, DueDate = dueDate };
                     var json = JsonSerializer.Serialize(createTaskRequest);
                     var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                    // Fazer requisição POST para a API
                     var response = await httpClient.PostAsync("/api/tasks", content);
 
                     if (response.IsSuccessStatusCode)
@@ -159,18 +158,23 @@ namespace TaskManager.ConsoleApp
                     }
                     else
                     {
-                        Console.WriteLine("[ERRO] Data inválida!");
+                        var errorContent = await response.Content.ReadAsStringAsync();
+                        Console.WriteLine($"[ERRO] {response.StatusCode}: {errorContent}");
                     }
+                }
+                else
+                {
+                    Console.WriteLine("[ERRO] Data inválida!");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[ERRO] {ex.Message}");
             }
+
             Console.WriteLine("\nPressione qualquer tecla para continuar...");
             Console.ReadKey();
         }
-
 
         static async Task ListAllTasksAsync(HttpClient httpClient)
         {
@@ -188,7 +192,6 @@ namespace TaskManager.ConsoleApp
 
                     int taskCount = 0;
 
-                    // Verificar se é um array e percorrer
                     if (jsonDocument.RootElement.ValueKind == JsonValueKind.Array)
                     {
                         foreach (var taskElement in jsonDocument.RootElement.EnumerateArray())
@@ -252,6 +255,13 @@ namespace TaskManager.ConsoleApp
             {
                 if (int.TryParse(idInput, out int id))
                 {
+                    if (id <= 0)
+                    {
+                        Console.WriteLine("[ERRO] ID deve ser maior que zero!");
+                        Console.ReadKey();
+                        return;
+                    }
+
                     var response = await httpClient.GetAsync($"/api/tasks/{id}");
 
                     if (response.IsSuccessStatusCode)
@@ -260,7 +270,6 @@ namespace TaskManager.ConsoleApp
                         var jsonDocument = JsonDocument.Parse(responseContent);
                         var taskElement = jsonDocument.RootElement;
 
-                        // Extrair propriedades do JSON
                         if (taskElement.TryGetProperty("id", out var idProp) &&
                             taskElement.TryGetProperty("title", out var titleProp) &&
                             taskElement.TryGetProperty("description", out var descProp) &&
@@ -282,7 +291,6 @@ namespace TaskManager.ConsoleApp
                             Console.WriteLine($"Data de Vencimento: {dueDate:dd/MM/yyyy}");
                             Console.WriteLine($"Criada em: {createdAt:dd/MM/yyyy HH:mm}");
 
-                            // Verificar se tem updatedAt (pode ser null)
                             if (taskElement.TryGetProperty("updatedAt", out var updatedAtProp) &&
                                 updatedAtProp.ValueKind != JsonValueKind.Null)
                             {
@@ -290,7 +298,6 @@ namespace TaskManager.ConsoleApp
                                 Console.WriteLine($"Atualizada em: {updatedAt:dd/MM/yyyy HH:mm}");
                             }
 
-                            // Verificar se está atrasada (não concluída e data passada)
                             if (!isCompleted && dueDate < DateTime.UtcNow)
                             {
                                 Console.WriteLine("[ATRASADA] Esta task está atrasada!");
@@ -325,22 +332,72 @@ namespace TaskManager.ConsoleApp
             Console.ReadKey();
         }
 
-        static async Task GetCompletedTasksAsync(ITaskService taskService)
+        static async Task GetCompletedTasksAsync(HttpClient httpClient)
         {
             Console.Clear();
             Console.WriteLine("=== TASKS CONCLUÍDAS ===");
 
             try
             {
-                var tasks = await taskService.GetCompletedTasksAsync();
+                var response = await httpClient.GetAsync("/api/tasks/completed");
 
-                foreach (var task in tasks)
+                if (response.IsSuccessStatusCode)
                 {
-                    var dueDate = task.DueDate.ToString("dd/MM/yyyy");
-                    var completedDate = task.UpdatedAt?.ToString("dd/MM/yyyy") ?? "N/A";
-                    Console.WriteLine($"[{task.Id}] {task.Title} - Concluída em: {completedDate} - Vencia: {dueDate}");
+                    var responseContent = await response.Content.ReadAsStringAsync();
+                    var jsonDocument = JsonDocument.Parse(responseContent);
+
+                    int taskCount = 0;
+
+                    if (jsonDocument.RootElement.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var taskElement in jsonDocument.RootElement.EnumerateArray())
+                        {
+                            if (taskElement.TryGetProperty("id", out var idProp) &&
+                                taskElement.TryGetProperty("title", out var titleProp) &&
+                                taskElement.TryGetProperty("dueDate", out var dueDateProp) &&
+                                taskElement.TryGetProperty("updatedAt", out var updatedAtProp))
+                            {
+                                var id = idProp.GetInt32();
+                                var title = titleProp.GetString() ?? "Sem título";
+                                var dueDate = dueDateProp.GetDateTime();
+
+                                var dueDateStr = dueDate.ToString("dd/MM/yyyy");
+                                var completedDate = "N/A";
+
+                                if (updatedAtProp.ValueKind != JsonValueKind.Null)
+                                {
+                                    var updatedAt = updatedAtProp.GetDateTime();
+                                    completedDate = updatedAt.ToString("dd/MM/yyyy");
+                                }
+
+                                Console.WriteLine($"[{id}] {title} - Concluída em: {completedDate} - Vencia: {dueDateStr}");
+                                taskCount++;
+                            }
+                        }
+
+                        if (taskCount == 0)
+                        {
+                            Console.WriteLine("Nenhuma task concluída encontrada.");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"\nTotal: {taskCount} task(s) concluída(s)");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Formato de resposta inválido.");
+                    }
                 }
-                Console.WriteLine($"\nTotal: {tasks.Count()} task(s) concluída(s)");
+                else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    Console.WriteLine("Nenhuma task concluída encontrada.");
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[ERRO] {response.StatusCode}: {errorContent}");
+                }
             }
             catch (Exception ex)
             {
@@ -351,21 +408,65 @@ namespace TaskManager.ConsoleApp
             Console.ReadKey();
         }
 
-        static async Task GetPendingTasksAsync(ITaskService taskService)
+        static async Task GetPendingTasksAsync(HttpClient httpClient)
         {
             Console.Clear();
             Console.WriteLine("=== TASKS PENDENTES ===");
 
             try
             {
-                var tasks = await taskService.GetPendingTasksAsync();
+                var response = await httpClient.GetAsync("/api/tasks/pending");
 
-                foreach(var task in tasks)
+                if (response.IsSuccessStatusCode)
                 {
-                    var dueDate = task.DueDate.ToString("dd/MM/yyyy");
-                    Console.WriteLine($"[{task.Id}] {task.Title} - Vence em: {dueDate}");
+                    var responseContent = await response.Content.ReadAsStringAsync();
+                    var jsonDocument = JsonDocument.Parse(responseContent);
+
+                    int taskCount = 0;
+
+                    if (jsonDocument.RootElement.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var taskElement in jsonDocument.RootElement.EnumerateArray())
+                        {
+                            if (taskElement.TryGetProperty("id", out var idProp) &&
+                                taskElement.TryGetProperty("title", out var titleProp) &&
+                                taskElement.TryGetProperty("dueDate", out var dueDateProp))
+                            {
+                                var id = idProp.GetInt32();
+                                var title = titleProp.GetString() ?? "Sem título";
+                                var dueDate = dueDateProp.GetDateTime();
+
+                                var dueDateStr = dueDate.ToString("dd/MM/yyyy");
+                                var status = dueDate < DateTime.UtcNow ? "[ATRASADA] " : "";
+
+                                Console.WriteLine($"{status}[{id}] {title} - Vence em: {dueDateStr}");
+                                taskCount++;
+                            }
+                        }
+
+                        if (taskCount == 0)
+                        {
+                            Console.WriteLine("Nenhuma task pendente encontrada.");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"\nTotal: {taskCount} task(s) pendente(s)");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Formato de resposta inválido.");
+                    }
                 }
-                Console.WriteLine($"\nTotal: {tasks.Count()} task(s) pendente(s)");
+                else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    Console.WriteLine("Nenhuma task pendente encontrada.");
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[ERRO] {response.StatusCode}: {errorContent}");
+                }
             }
             catch (Exception ex)
             {
@@ -376,21 +477,64 @@ namespace TaskManager.ConsoleApp
             Console.ReadKey();
         }
 
-        static async Task GetOverdueTasksAsync(ITaskService taskService)
+        static async Task GetOverdueTasksAsync(HttpClient httpClient)
         {
             Console.Clear();
             Console.WriteLine("=== TASKS ATRASADAS ===");
 
             try
             {
-                var tasks = await taskService.GetOverdueTasksAsync();
+                var response = await httpClient.GetAsync("/api/tasks/overdue");
 
-                foreach(var task in tasks)
+                if (response.IsSuccessStatusCode)
                 {
-                    var dueDate = task.DueDate.ToString("dd/MM/yyyy");
-                    Console.WriteLine($"[{task.Id}] {task.Title} - Venceu em: {dueDate}");
+                    var responseContent = await response.Content.ReadAsStringAsync();
+                    var jsonDocument = JsonDocument.Parse(responseContent);
+
+                    int taskCount = 0;
+
+                    if (jsonDocument.RootElement.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var taskElement in jsonDocument.RootElement.EnumerateArray())
+                        {
+                            if (taskElement.TryGetProperty("id", out var idProp) &&
+                                taskElement.TryGetProperty("title", out var titleProp) &&
+                                taskElement.TryGetProperty("dueDate", out var dueDateProp))
+                            {
+                                var id = idProp.GetInt32();
+                                var title = titleProp.GetString() ?? "Sem título";
+                                var dueDate = dueDateProp.GetDateTime();
+
+                                var dueDateStr = dueDate.ToString("dd/MM/yyyy");
+
+                                Console.WriteLine($"[{id}] {title} - Venceu em: {dueDateStr}");
+                                taskCount++;
+                            }
+                        }
+
+                        if (taskCount == 0)
+                        {
+                            Console.WriteLine("Nenhuma task atrasada encontrada.");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"\nTotal: {taskCount} task(s) atrasada(s)");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Formato de resposta inválido.");
+                    }
                 }
-                Console.WriteLine($"\nTotal: {tasks.Count()} task(s) atrasada(s)");
+                else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    Console.WriteLine("Nenhuma task atrasada encontrada.");
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[ERRO] {response.StatusCode}: {errorContent}");
+                }
             }
             catch (Exception ex)
             {
@@ -401,7 +545,7 @@ namespace TaskManager.ConsoleApp
             Console.ReadKey();
         }
 
-        static async Task UpdateTaskAsync(ITaskService taskService)
+        static async Task UpdateTaskAsync(HttpClient httpClient)
         {
             Console.Clear();
             Console.WriteLine("=== ATUALIZAR TASK ===");
@@ -414,32 +558,90 @@ namespace TaskManager.ConsoleApp
                 return;
             }
 
+            if (id <= 0)
+            {
+                Console.WriteLine("[ERRO] ID deve ser maior que zero!");
+                Console.ReadKey();
+                return;
+            }
+
             try
             {
-                var existingTask = await taskService.GetTaskByIdAsync(id);
+                var getResponse = await httpClient.GetAsync($"/api/tasks/{id}");
 
-                Console.WriteLine($"\n--- EDITANDO TASK {existingTask.Id} ---");
-                Console.WriteLine($"Título atual: {existingTask.Title}");
-                Console.WriteLine($"Descrição atual: {existingTask.Description}");
-                Console.WriteLine($"Data atual: {existingTask.DueDate:dd/MM/yyyy}");
-                Console.WriteLine("-----------------------------------\n");
-
-                Console.Write("Novo Título: ");
-                var title = Console.ReadLine();
-
-                Console.Write("Nova Descrição: ");
-                var description = Console.ReadLine();
-
-                Console.Write("Nova Data (dd/mm/aaaa): ");
-                if (!DateTime.TryParse(Console.ReadLine(), out DateTime dueDate))
+                if (!getResponse.IsSuccessStatusCode)
                 {
-                    Console.WriteLine("[ERRO] Data inválida!");
+                    if (getResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    {
+                        Console.WriteLine($"[ERRO] Task com ID {id} não encontrada.");
+                    }
+                    else
+                    {
+                        var errorContent = await getResponse.Content.ReadAsStringAsync();
+                        Console.WriteLine($"[ERRO] {getResponse.StatusCode}: {errorContent}");
+                    }
                     Console.ReadKey();
                     return;
                 }
-    
-                await taskService.UpdateTaskAsync(id, title, description, dueDate);
-                Console.WriteLine("[OK] Task atualizada com sucesso!");
+
+                var responseContent = await getResponse.Content.ReadAsStringAsync();
+                var jsonDocument = JsonDocument.Parse(responseContent);
+                var taskElement = jsonDocument.RootElement;
+
+                if (taskElement.TryGetProperty("title", out var titleProp) &&
+                    taskElement.TryGetProperty("description", out var descProp) &&
+                    taskElement.TryGetProperty("dueDate", out var dueDateProp))
+                {
+                    var currentTitle = titleProp.GetString() ?? "Sem título";
+                    var currentDescription = descProp.GetString() ?? "Sem descrição";
+                    var currentDueDate = dueDateProp.GetDateTime();
+
+                    Console.WriteLine($"\n--- EDITANDO TASK {id} ---");
+                    Console.WriteLine($"Título atual: {currentTitle}");
+                    Console.WriteLine($"Descrição atual: {currentDescription}");
+                    Console.WriteLine($"Data atual: {currentDueDate:dd/MM/yyyy}");
+                    Console.WriteLine("-----------------------------------\n");
+
+                    Console.Write("Novo Título: ");
+                    var newTitle = Console.ReadLine();
+
+                    Console.Write("Nova Descrição: ");
+                    var newDescription = Console.ReadLine();
+
+                    Console.Write("Nova Data (dd/mm/aaaa): ");
+                    if (!DateTime.TryParse(Console.ReadLine(), out DateTime newDueDate))
+                    {
+                        Console.WriteLine("[ERRO] Data inválida!");
+                        Console.ReadKey();
+                        return;
+                    }
+
+                    var updateTaskRequest = new
+                    {
+                        Title = newTitle,
+                        Description = newDescription,
+                        DueDate = newDueDate
+                    };
+
+                    var json = JsonSerializer.Serialize(updateTaskRequest);
+                    var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                    var putResponse = await httpClient.PutAsync($"/api/tasks/{id}", content);
+
+                    if (putResponse.IsSuccessStatusCode)
+                    {
+                        Console.WriteLine("[OK] Task atualizada com sucesso!");
+                    }
+                    else
+                    {
+                        var errorContent = await putResponse.Content.ReadAsStringAsync();
+                        Console.WriteLine($"[ERRO] {putResponse.StatusCode}: {errorContent}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("[ERRO] Não foi possível ler os dados da task.");
+                }
             }
             catch (Exception ex)
             {
@@ -449,9 +651,7 @@ namespace TaskManager.ConsoleApp
             Console.ReadKey();
         }
 
-        
-
-        static async Task DeleteTaskAsync(ITaskService taskService)
+        static async Task DeleteTaskAsync(HttpClient httpClient)
         {
             Console.Clear();
             Console.WriteLine("=== DELETAR TASK ===");
@@ -464,61 +664,55 @@ namespace TaskManager.ConsoleApp
                 return;
             }
 
+            if (id <= 0)
+            {
+                Console.WriteLine("[ERRO] ID deve ser maior que zero!");
+                Console.ReadKey();
+                return;
+            }
+
             try
             {
-                await taskService.DeleteTaskAsync(id);
-                Console.WriteLine("[OK] Task deletada com sucesso!");
+                Console.Write($"\nTem certeza que deseja deletar a task {id}? (s/N): ");
+                var confirmation = Console.ReadLine();
+
+                if (!confirmation.Equals("s", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine("Operação cancelada.");
+                    Console.ReadKey();
+                    return;
+                }
+
+                var response = await httpClient.DeleteAsync($"/api/tasks/{id}");
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine("[OK] Task deletada com sucesso!");
+                }
+                else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    Console.WriteLine($"[ERRO] Task com ID {id} não encontrada.");
+                }
+                else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    Console.WriteLine("[ERRO] Você não tem permissão para deletar esta task.");
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[ERRO] {response.StatusCode}: {errorContent}");
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[ERRO] {ex.Message}");
             }
 
+            Console.WriteLine("\nPressione qualquer tecla para continuar...");
             Console.ReadKey();
         }
 
-        public class AuthService
-        {
-            private readonly HttpClient _httpClient;
-            private string _token;
-
-            public AuthService(HttpClient httpClient)
-            {
-                _httpClient = httpClient;
-                _httpClient.BaseAddress = new Uri("https://localhost:7000"); //URL da sua API
-            }   
-
-            public async Task<bool> LoginAsync(string email, string password)
-            {
-                try
-                {
-                    var loginDto = new { Email = email, Password = password };
-                    var json = JsonSerializer.Serialize(loginDto);
-                    var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                    var response = await _httpClient.PostAsync("/api/auth/login", content);
-
-                    if (response.IsSuccessStatusCode)
-                    {
-                        var responseContent = await response.Content.ReadAsStringAsync();
-                        var authResponse = JsonSerializer.Deserialize<AuthResponse>(responseContent,
-                            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-                        _token = authResponse.Token;
-                        return true;
-                    }
-
-                    return false;
-                }
-                catch (Exception)
-                {
-                    return false;
-                }
-            }
-
-            public string GetToken() => _token;
-        }
-
+        // DTOs
         public class AuthResponse
         {
             public string Token { get; set; } = string.Empty;
@@ -545,7 +739,7 @@ namespace TaskManager.ConsoleApp
             public string Password { get; set; } = string.Empty;
         }
 
-        static async Task<bool> HandleLoginAsync(HttpClient httpClient, ref string token)
+        static async Task<(bool success, string token)> HandleLoginAsync(HttpClient httpClient)
         {
             Console.Clear();
             Console.WriteLine("=== LOGIN ===");
@@ -570,23 +764,23 @@ namespace TaskManager.ConsoleApp
                     var authResponse = JsonSerializer.Deserialize<AuthResponse>(responseContent,
                         new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
-                    token = authResponse.Token;
+                    var token = authResponse.Token;
                     Console.WriteLine($"\n✅ Login realizado com sucesso! Bem-vindo, {authResponse.User.UserName}!");
                     Console.ReadKey();
-                    return true;
+                    return (true, token);
                 }
                 else
                 {
                     Console.WriteLine("\n❌ Credenciais inválidas!");
                     Console.ReadKey();
-                    return false;
+                    return (false, string.Empty);
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"\n❌ Erro: {ex.Message}");
                 Console.ReadKey();
-                return false;
+                return (false, string.Empty);
             }
         }
 
@@ -629,6 +823,5 @@ namespace TaskManager.ConsoleApp
 
             Console.ReadKey();
         }
-
     }
 }

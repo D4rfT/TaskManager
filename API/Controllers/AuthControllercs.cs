@@ -5,15 +5,13 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using TaskManager.Domain.Entities;
 using TaskManager.Infra.Data.Context;
-using Microsoft.AspNetCore.Authorization;
 
 namespace API.Controllers
 {
-    
-    [Authorize]
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
         private readonly TaskContext _context;
@@ -30,7 +28,8 @@ namespace API.Controllers
         {
             try
             {
-                // Validar dados de entrada
+                Console.WriteLine($"Tentando registrar: {registerDto.UserName}, {registerDto.Email}"); // ← DEBUG
+
                 if (string.IsNullOrWhiteSpace(registerDto.UserName))
                     return BadRequest(new { message = "Nome de usuário é obrigatório" });
 
@@ -41,23 +40,31 @@ namespace API.Controllers
                     return BadRequest(new { message = "Senha é obrigatória" });
 
                 // Verificar se usuário já existe
-                if (await _context.Users.AnyAsync(u => u.Email == registerDto.Email))
+                var userExists = await _context.Users.AnyAsync(u => u.Email == registerDto.Email);
+                Console.WriteLine($"Usuário já existe: {userExists}"); // ← DEBUG
+
+                if (userExists)
                     return BadRequest(new { message = "Usuário já existe com este email" });
 
                 // Criar novo usuário
                 var user = new User(registerDto.UserName, registerDto.Email);
+                Console.WriteLine("Usuário criado, gerando hash..."); // ← DEBUG
 
+                // Usar método de hash
                 user.CreatePasswordHash(registerDto.Password);
 
-                // Salvar usuário no banco
+                Console.WriteLine("Tentando salvar no banco..."); // ← DEBUG
                 _context.Users.Add(user);
                 await _context.SaveChangesAsync();
 
+                Console.WriteLine("Usuário salvo com sucesso!"); // ← DEBUG
                 return Ok(new { message = "Usuário criado com sucesso" });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Erro interno do servidor" });
+                // ← MOSTRAR ERRO COMPLETO
+                Console.WriteLine($"ERRO NO REGISTRO: {ex}");
+                return StatusCode(500, new { message = $"Erro: {ex.Message}" });
             }
         }
 
@@ -66,11 +73,9 @@ namespace API.Controllers
         {
             try
             {
-                // Validar dados de entrada
                 if (string.IsNullOrWhiteSpace(loginDto.Email) || string.IsNullOrWhiteSpace(loginDto.Password))
                     return BadRequest(new { message = "Email e senha são obrigatórios" });
 
-                // Buscar usuário pelo email
                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == loginDto.Email);
                 if (user == null)
                     return Unauthorized(new { message = "Credenciais inválidas" });
@@ -78,7 +83,6 @@ namespace API.Controllers
                 if (!user.VerifyPasswordHash(loginDto.Password))
                     return Unauthorized(new { message = "Credenciais inválidas" });
 
-                // Gerar token JWT
                 var token = GenerateJwtToken(user);
 
                 return Ok(new AuthResponse

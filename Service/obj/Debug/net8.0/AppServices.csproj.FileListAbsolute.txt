@@ -13,3 +13,4 @@ C:\Users\Daniel\source\repos\TaskManager\Service\obj\Debug\net8.0\AppServices.dl
 C:\Users\Daniel\source\repos\TaskManager\Service\obj\Debug\net8.0\refint\AppServices.dll
 C:\Users\Daniel\source\repos\TaskManager\Service\obj\Debug\net8.0\AppServices.pdb
 C:\Users\Daniel\source\repos\TaskManager\Service\obj\Debug\net8.0\ref\AppServices.dll
+C:\Users\Daniel\source\repos\TaskManager\Service\obj\Debug\net8.0\AppServices.sourcelink.json
