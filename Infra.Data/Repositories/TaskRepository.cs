@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -33,14 +34,14 @@ namespace Infra.Data.Repositories
 
         }
 
-        public async Task<TaskItem> GetByIdAsync(int id)
+        public async Task<TaskItem?> GetByIdAsync(int id, int userId)
         {
-                return await _context.Tasks.FirstOrDefaultAsync(t => t.Id == id);
+                return await _context.Tasks.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
         }
 
-        public async Task<IEnumerable<TaskItem>> GetAllAsync()
+        public async Task<IEnumerable<TaskItem>> GetAllAsync(int userId)
         {
-                return await _context.Tasks.ToListAsync();
+                return await _context.Tasks.Where(t => t.UserId == userId).ToListAsync();
         }
 
         public async Task UpdateAsync(TaskItem task)
@@ -57,9 +58,9 @@ namespace Infra.Data.Repositories
 
         }
 
-        public async Task DeleteAsync(int id)
+        public async Task DeleteAsync(int id, int userId)
         {      
-                var task = await GetByIdAsync(id);
+                var task = await GetByIdAsync(id ,userId);
                 if(task != null)
                 {
                     _context.Tasks.Remove(task);
@@ -67,25 +68,25 @@ namespace Infra.Data.Repositories
                 }
         }
 
-        public async Task<IEnumerable<TaskItem>> GetCompletedAsync()
+        public async Task<IEnumerable<TaskItem>> GetCompletedAsync(int userId)
         {
             return await _context.Tasks
-                .Where(t => t.IsCompleted)
+                .Where(t => t.UserId == userId && t.IsCompleted)
                 .ToListAsync();
         }
 
-        public async Task<IEnumerable<TaskItem>> GetPendingAsync()
+        public async Task<IEnumerable<TaskItem>> GetPendingAsync(int userId)
         {
             return await _context.Tasks
-                .Where(t => !t.IsCompleted)
+                .Where(t =>t.UserId == userId && !t.IsCompleted)
                 .ToListAsync();
         }
 
-        public async Task<IEnumerable<TaskItem>> GetOverdueAsync()
+        public async Task<IEnumerable<TaskItem>> GetOverdueAsync(int userId)
         {
             var now = DateTime.UtcNow;
             return await _context.Tasks
-                .Where(t => !t.IsCompleted && t.DueDate < now)
+                .Where(t =>t.UserId == userId && !t.IsCompleted && t.DueDate < now)
                 .ToListAsync();
         }
 

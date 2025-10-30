@@ -7,16 +7,16 @@ using TaskManager.Domain.Entities;
 
 namespace AppServices.Interfaces
 {
-    public interface ITaskService
-    {
-        Task<TaskItem> CreateTaskAsync(string title, string description, DateTime dueDate);
-        Task UpdateTaskAsync(int id, string title, string description, DateTime dueDate);
-        Task DeleteTaskAsync(int id);
-        Task<TaskItem?> GetTaskByIdAsync(int id);
-        Task<IEnumerable<TaskItem>> GetAllTasksAsync();
-        Task<IEnumerable<TaskItem>> GetCompletedTasksAsync();
-        Task<IEnumerable<TaskItem>> GetPendingTasksAsync();
-        Task<IEnumerable<TaskItem>> GetOverdueTasksAsync();
+        public interface ITaskService
+        {
+            Task<TaskItem> CreateTaskAsync(string title, string description, DateTime dueDate, int userId);
+            Task UpdateTaskAsync(int id, string title, string description, DateTime dueDate, int userId);
+            Task DeleteTaskAsync(int id, int userId);
+            Task<TaskItem?> GetTaskByIdAsync(int id, int userId);
+            Task<IEnumerable<TaskItem>> GetAllTasksAsync(int userId);
+            Task<IEnumerable<TaskItem>> GetCompletedTasksAsync(int userId);
+            Task<IEnumerable<TaskItem>> GetPendingTasksAsync(int userId);
+            Task<IEnumerable<TaskItem>> GetOverdueTasksAsync(int userId);
+        }
 
-    }
 }

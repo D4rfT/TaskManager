@@ -1,10 +1,13 @@
 ﻿using API.Models;
 using AppServices.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using TaskManager.Domain.Entities;
 
 namespace API.Controllers
 {
+    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class TasksController : ControllerBase
@@ -16,12 +19,23 @@ namespace API.Controllers
             _taskService = taskService;
         }
 
+        private int GetUserId()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
+            {
+                throw new UnauthorizedAccessException("User ID não encontrado no token");
+            }
+            return userId;
+        }
+
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TaskResponse>>> GetAll()
         {
             try
             {
-                var tasks = await _taskService.GetAllTasksAsync();
+                var userId = GetUserId();
+                var tasks = await _taskService.GetAllTasksAsync(userId);
                 var response = tasks.Select(ConvertToTaskResponse);
                 return Ok(response);
             }
@@ -36,7 +50,8 @@ namespace API.Controllers
         {
             try
             {
-                var task = await _taskService.GetTaskByIdAsync(id);
+                var userId = GetUserId();
+                var task = await _taskService.GetTaskByIdAsync(id, userId);
                 var response = ConvertToTaskResponse(task);
                 return Ok(response);
             }
@@ -55,7 +70,8 @@ namespace API.Controllers
         {
             try
             {
-                await _taskService.DeleteTaskAsync(id);
+                var userId = GetUserId();
+                await _taskService.DeleteTaskAsync(id, userId);
                 return NoContent();
             }
             catch (KeyNotFoundException ex)
@@ -73,7 +89,8 @@ namespace API.Controllers
         {
             try
             {
-                var task = await _taskService.CreateTaskAsync(request.Title, request.Description, request.DueDate);
+                var userId = GetUserId();
+                var task = await _taskService.CreateTaskAsync(request.Title, request.Description, request.DueDate, userId);
                 var response = ConvertToTaskResponse(task);
                 return CreatedAtAction(nameof(GetById), new { id = response.Id }, response);
             }
@@ -88,11 +105,13 @@ namespace API.Controllers
         {
             try
             {
+                var userId = GetUserId();
                 await _taskService.UpdateTaskAsync(
                     id,
                     request.Title,
                     request.Description,
-                    request.DueDate);
+                    request.DueDate,
+                    userId);
 
                 return NoContent();
             }
@@ -111,7 +130,8 @@ namespace API.Controllers
         {
             try
             {
-                var tasks = await _taskService.GetCompletedTasksAsync();
+                var userId = GetUserId();
+                var tasks = await _taskService.GetCompletedTasksAsync(userId);
                 var response = tasks.Select(ConvertToTaskResponse);
                 return Ok(response);
             }
@@ -130,7 +150,8 @@ namespace API.Controllers
         {
             try
             {
-                var tasks = await _taskService.GetPendingTasksAsync();
+                var userId = GetUserId();
+                var tasks = await _taskService.GetPendingTasksAsync(userId);
                 var response = tasks.Select(ConvertToTaskResponse);
                 return Ok(response);
             }
@@ -149,7 +170,8 @@ namespace API.Controllers
         {
             try
             {
-                var tasks = await _taskService.GetOverdueTasksAsync();
+                var userId = GetUserId();
+                var tasks = await _taskService.GetOverdueTasksAsync(userId);
                 var response = tasks.Select(ConvertToTaskResponse);
                 return Ok(response);
             }
