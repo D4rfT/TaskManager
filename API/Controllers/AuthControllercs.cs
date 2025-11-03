@@ -1,9 +1,11 @@
 ﻿using Domain.Entities;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using TaskManager.Domain.Entities;
 using TaskManager.Infra.Data.Context;
@@ -28,8 +30,6 @@ namespace API.Controllers
         {
             try
             {
-                Console.WriteLine($"Tentando registrar: {registerDto.UserName}, {registerDto.Email}"); // ← DEBUG
-
                 if (string.IsNullOrWhiteSpace(registerDto.UserName))
                     return BadRequest(new { message = "Nome de usuário é obrigatório" });
 
@@ -39,32 +39,20 @@ namespace API.Controllers
                 if (string.IsNullOrWhiteSpace(registerDto.Password))
                     return BadRequest(new { message = "Senha é obrigatória" });
 
-                // Verificar se usuário já existe
-                var userExists = await _context.Users.AnyAsync(u => u.Email == registerDto.Email);
-                Console.WriteLine($"Usuário já existe: {userExists}"); // ← DEBUG
-
-                if (userExists)
+                if (await _context.Users.AnyAsync(u => u.Email == registerDto.Email))
                     return BadRequest(new { message = "Usuário já existe com este email" });
 
-                // Criar novo usuário
                 var user = new User(registerDto.UserName, registerDto.Email);
-                Console.WriteLine("Usuário criado, gerando hash..."); // ← DEBUG
-
-                // Usar método de hash
                 user.CreatePasswordHash(registerDto.Password);
 
-                Console.WriteLine("Tentando salvar no banco..."); // ← DEBUG
                 _context.Users.Add(user);
                 await _context.SaveChangesAsync();
 
-                Console.WriteLine("Usuário salvo com sucesso!"); // ← DEBUG
                 return Ok(new { message = "Usuário criado com sucesso" });
             }
             catch (Exception ex)
             {
-                // ← MOSTRAR ERRO COMPLETO
-                Console.WriteLine($"ERRO NO REGISTRO: {ex}");
-                return StatusCode(500, new { message = $"Erro: {ex.Message}" });
+                return StatusCode(500, new { message = "Erro interno do servidor" });
             }
         }
 
@@ -83,11 +71,17 @@ namespace API.Controllers
                 if (!user.VerifyPasswordHash(loginDto.Password))
                     return Unauthorized(new { message = "Credenciais inválidas" });
 
-                var token = GenerateJwtToken(user);
+                var accessToken = GenerateJwtToken(user);
+                var refreshToken = GenerateRefreshToken();
+
+ 
+                user.SetRefreshToken(refreshToken, DateTime.UtcNow.AddDays(7));
+                await _context.SaveChangesAsync();
 
                 return Ok(new AuthResponse
                 {
-                    Token = token,
+                    AccessToken = accessToken,
+                    RefreshToken = refreshToken,
                     User = new UserResponse
                     {
                         Id = user.Id,
@@ -95,6 +89,67 @@ namespace API.Controllers
                         Email = user.Email
                     }
                 });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Erro interno do servidor" });
+            }
+        }
+
+        [HttpPost("refresh")]
+        public async Task<IActionResult> Refresh([FromBody] RefreshRequest request)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(request.RefreshToken))
+                    return BadRequest(new { message = "Refresh token é obrigatório" });
+
+                var user = await _context.Users
+                    .FirstOrDefaultAsync(u => u.RefreshToken == request.RefreshToken);
+
+                if (user == null || !user.IsRefreshTokenValid(request.RefreshToken))
+                    return Unauthorized(new { message = "Refresh token inválido ou expirado" });
+
+                var newAccessToken = GenerateJwtToken(user);
+                var newRefreshToken = GenerateRefreshToken();
+
+                user.SetRefreshToken(newRefreshToken, DateTime.UtcNow.AddDays(7));
+                await _context.SaveChangesAsync();
+
+                return Ok(new AuthResponse
+                {
+                    AccessToken = newAccessToken,
+                    RefreshToken = newRefreshToken,
+                    User = new UserResponse
+                    {
+                        Id = user.Id,
+                        UserName = user.UserName,
+                        Email = user.Email
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Erro interno do servidor" });
+            }
+        }
+
+        [HttpPost("logout")]
+        [Authorize]
+        public async Task<IActionResult> Logout()
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                var user = await _context.Users.FindAsync(userId);
+
+                if (user != null)
+                {
+                    user.SetRefreshToken(string.Empty, DateTime.UtcNow);
+                    await _context.SaveChangesAsync();
+                }
+
+                return Ok(new { message = "Logout realizado com sucesso" });
             }
             catch (Exception ex)
             {
@@ -125,9 +180,27 @@ namespace API.Controllers
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return tokenHandler.WriteToken(token);
         }
+
+        private string GenerateRefreshToken()
+        {
+            var randomNumber = new byte[64];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(randomNumber);
+            return Convert.ToBase64String(randomNumber);
+        }
+    }
+    public class RefreshRequest
+    {
+        public string RefreshToken { get; set; } = string.Empty;
     }
 
-    // DTOs
+    public class AuthResponse
+    {
+        public string AccessToken { get; set; } = string.Empty;
+        public string RefreshToken { get; set; } = string.Empty;
+        public UserResponse User { get; set; } = new UserResponse();
+    }
+
     public class RegisterDto
     {
         public string UserName { get; set; } = string.Empty;
@@ -139,12 +212,6 @@ namespace API.Controllers
     {
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
-    }
-
-    public class AuthResponse
-    {
-        public string Token { get; set; } = string.Empty;
-        public UserResponse User { get; set; } = new UserResponse();
     }
 
     public class UserResponse

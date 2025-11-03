@@ -47,7 +47,10 @@ namespace TaskManager.Infra.Data.Context
 
                 entity.Property(e => e.UpdatedAt).IsRequired();
 
-                // Relacionamento: 1 User → Muitas Tasks
+                entity.Property(e => e.RefreshToken).IsRequired();
+
+                entity.Property(e => e.RefreshTokenExpiry).IsRequired();
+
                 entity.HasMany(u => u.Tasks)
                     .WithOne(t => t.User)
                     .HasForeignKey(t => t.UserId)

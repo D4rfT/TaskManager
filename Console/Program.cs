@@ -15,7 +15,10 @@ namespace TaskManager.ConsoleApp
         {
             var httpClient = new HttpClient();
             httpClient.BaseAddress = new Uri("https://localhost:7198");
-            string token = string.Empty;
+
+            string accessToken = string.Empty;
+            string refreshToken = string.Empty;
+            string currentUser = string.Empty;
 
             // TELA DE LOGIN/REGISTRO
             bool authenticated = false;
@@ -33,12 +36,14 @@ namespace TaskManager.ConsoleApp
                 switch (authOption)
                 {
                     case "1":
-                        var (success, newToken) = await HandleLoginAsync(httpClient);
+                        var (success, newAccessToken, newRefreshToken, userName) = await HandleLoginAsync(httpClient);
                         if (success)
                         {
-                            token = newToken;
+                            accessToken = newAccessToken;
+                            refreshToken = newRefreshToken;
+                            currentUser = userName;
                             httpClient.DefaultRequestHeaders.Authorization =
-                                new AuthenticationHeaderValue("Bearer", token);
+                                new AuthenticationHeaderValue("Bearer", accessToken);
                             authenticated = true;
                         }
                         break;
@@ -55,11 +60,10 @@ namespace TaskManager.ConsoleApp
             }
 
             bool continueRunning = true;
-
             while (continueRunning)
             {
                 Console.Clear();
-                Console.WriteLine("=== TASK MANAGER ===");
+                Console.WriteLine($"=== TASK MANAGER - Usuário: {currentUser} ===");
                 Console.WriteLine("1. Criar Nova Task");
                 Console.WriteLine("2. Listar Todas as Tasks");
                 Console.WriteLine("3. Buscar Task por ID");
@@ -77,31 +81,60 @@ namespace TaskManager.ConsoleApp
                 switch (option)
                 {
                     case "1":
-                        await CreateTaskAsync(httpClient);
+                        var tokens1 = await ExecuteWithTokenRefresh(httpClient, () => CreateTaskAsync(httpClient),
+                            accessToken, refreshToken);
+                        accessToken = tokens1.newAccessToken;
+                        refreshToken = tokens1.newRefreshToken;
                         break;
                     case "2":
-                        await ListAllTasksAsync(httpClient);
+                        var tokens2 = await ExecuteWithTokenRefresh(httpClient, () => ListAllTasksAsync(httpClient),
+                            accessToken, refreshToken);
+                        accessToken = tokens2.newAccessToken;
+                        refreshToken = tokens2.newRefreshToken;
                         break;
                     case "3":
-                        await GetTaskByIdAsync(httpClient);
+                        var tokens3 = await ExecuteWithTokenRefresh(httpClient, () => GetTaskByIdAsync(httpClient),
+                            accessToken, refreshToken);
+                        accessToken = tokens3.newAccessToken;
+                        refreshToken = tokens3.newRefreshToken;
                         break;
                     case "4":
-                        await GetCompletedTasksAsync(httpClient);
+                        var tokens4 = await ExecuteWithTokenRefresh(httpClient, () => GetCompletedTasksAsync(httpClient),
+                            accessToken, refreshToken);
+                        accessToken = tokens4.newAccessToken;
+                        refreshToken = tokens4.newRefreshToken;
                         break;
                     case "5":
-                        await GetPendingTasksAsync(httpClient);
+                        var tokens5 = await ExecuteWithTokenRefresh(httpClient, () => GetPendingTasksAsync(httpClient),
+                            accessToken, refreshToken);
+                        accessToken = tokens5.newAccessToken;
+                        refreshToken = tokens5.newRefreshToken;
                         break;
                     case "6":
-                        await GetOverdueTasksAsync(httpClient);
+                        var tokens6 = await ExecuteWithTokenRefresh(httpClient, () => GetOverdueTasksAsync(httpClient),
+                            accessToken, refreshToken);
+                        accessToken = tokens6.newAccessToken;
+                        refreshToken = tokens6.newRefreshToken;
                         break;
                     case "7":
-                        await UpdateTaskAsync(httpClient);
+                        var tokens7 = await ExecuteWithTokenRefresh(httpClient, () => UpdateTaskAsync(httpClient),
+                            accessToken, refreshToken);
+                        accessToken = tokens7.newAccessToken;
+                        refreshToken = tokens7.newRefreshToken;
                         break;
                     case "8":
-                        await DeleteTaskAsync(httpClient);
-                        break;
+                        var tokens8 = await ExecuteWithTokenRefresh(httpClient, () => DeleteTaskAsync(httpClient),
+                            accessToken, refreshToken);
+                        accessToken = tokens8.newAccessToken;
+                        refreshToken = tokens8.newRefreshToken;
+                        break;              
                     case "9":
+                        // ✅ LOGOUT REAL - REVOGAR TOKENS
+                        await LogoutAsync(httpClient, accessToken);
                         httpClient.DefaultRequestHeaders.Authorization = null;
+                        accessToken = string.Empty;
+                        refreshToken = string.Empty;
+                        currentUser = string.Empty;
                         continueRunning = false;
                         break;
                     case "0":
@@ -712,34 +745,7 @@ namespace TaskManager.ConsoleApp
             Console.ReadKey();
         }
 
-        // DTOs
-        public class AuthResponse
-        {
-            public string Token { get; set; } = string.Empty;
-            public UserResponse User { get; set; } = new UserResponse();
-        }
-
-        public class UserResponse
-        {
-            public int Id { get; set; }
-            public string UserName { get; set; } = string.Empty;
-            public string Email { get; set; } = string.Empty;
-        }
-
-        public class LoginDto
-        {
-            public string Email { get; set; } = string.Empty;
-            public string Password { get; set; } = string.Empty;
-        }
-
-        public class RegisterDto
-        {
-            public string UserName { get; set; } = string.Empty;
-            public string Email { get; set; } = string.Empty;
-            public string Password { get; set; } = string.Empty;
-        }
-
-        static async Task<(bool success, string token)> HandleLoginAsync(HttpClient httpClient)
+        static async Task<(bool success, string accessToken, string refreshToken, string userName)> HandleLoginAsync(HttpClient httpClient)
         {
             Console.Clear();
             Console.WriteLine("=== LOGIN ===");
@@ -764,23 +770,26 @@ namespace TaskManager.ConsoleApp
                     var authResponse = JsonSerializer.Deserialize<AuthResponse>(responseContent,
                         new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
-                    var token = authResponse.Token;
-                    Console.WriteLine($"\n✅ Login realizado com sucesso! Bem-vindo, {authResponse.User.UserName}!");
+                    var accessToken = authResponse.AccessToken;
+                    var refreshToken = authResponse.RefreshToken;
+                    var userName = authResponse.User.UserName;
+
+                    Console.WriteLine($"\n Login realizado com sucesso! Bem-vindo, {userName}!");
                     Console.ReadKey();
-                    return (true, token);
+                    return (true, accessToken, refreshToken, userName);
                 }
                 else
                 {
-                    Console.WriteLine("\n❌ Credenciais inválidas!");
+                    Console.WriteLine("\n Credenciais inválidas!");
                     Console.ReadKey();
-                    return (false, string.Empty);
+                    return (false, string.Empty, string.Empty, string.Empty);
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"\n❌ Erro: {ex.Message}");
+                Console.WriteLine($"\n Erro: {ex.Message}");
                 Console.ReadKey();
-                return (false, string.Empty);
+                return (false, string.Empty, string.Empty, string.Empty);
             }
         }
 
@@ -808,20 +817,144 @@ namespace TaskManager.ConsoleApp
 
                 if (response.IsSuccessStatusCode)
                 {
-                    Console.WriteLine("\n✅ Usuário registrado com sucesso! Faça login agora.");
+                    Console.WriteLine("\n Usuário registrado com sucesso! Faça login agora.");
                 }
                 else
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"\n❌ Erro no registro: {errorContent}");
+                    Console.WriteLine($"\n Erro no registro: {errorContent}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"\n Erro: {ex.Message}");
+            }
+
+            Console.ReadKey();
+        }
+
+        static async Task<(bool success, string newAccessToken, string newRefreshToken)> RefreshTokensAsync(HttpClient httpClient, string refreshToken)
+        {
+            try
+            {
+                var refreshRequest = new RefreshRequest { RefreshToken = refreshToken };
+                var json = JsonSerializer.Serialize(refreshRequest);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await httpClient.PostAsync("/api/auth/refresh", content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseContent = await response.Content.ReadAsStringAsync();
+                    var authResponse = JsonSerializer.Deserialize<AuthResponse>(responseContent,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                    return (true, authResponse.AccessToken, authResponse.RefreshToken);
+                }
+                else
+                {
+                    Console.WriteLine("\n Falha ao renovar tokens. Faça login novamente.");
+                    return (false, string.Empty, string.Empty);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"\n Erro ao renovar tokens: {ex.Message}");
+                return (false, string.Empty, string.Empty);
+            }
+        }
+
+        static async Task<bool> LogoutAsync(HttpClient httpClient, string accessToken)
+        {
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/logout");
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+                var response = await httpClient.SendAsync(request);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine("\n✅ Logout realizado com sucesso!");
+                    return true;
+                }
+                else
+                {
+                    Console.WriteLine("\n❌ Erro no logout.");
+                    return false;
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"\n❌ Erro: {ex.Message}");
+                return false;
+            }
+        }
+
+        static async Task<(string newAccessToken, string newRefreshToken)> ExecuteWithTokenRefresh(
+            HttpClient httpClient, Func<Task> action, string currentAccessToken, string currentRefreshToken)
+        {
+            try
+            {
+                await action();
+                return (currentAccessToken, currentRefreshToken); // Tokens não mudaram
+            }
+            catch (HttpRequestException ex) when (ex.Message.Contains("401"))
+            {
+                // Token expirado - tentar renovar
+                Console.WriteLine("\n🔁 Token expirado, renovando...");
+
+                var (success, newAccessToken, newRefreshToken) = await RefreshTokensAsync(httpClient, currentRefreshToken);
+
+                if (success)
+                {
+                    httpClient.DefaultRequestHeaders.Authorization =
+                        new AuthenticationHeaderValue("Bearer", newAccessToken);
+
+                    Console.WriteLine(" Tokens renovados! Executando novamente...");
+                    await action();
+                    return (newAccessToken, newRefreshToken); // Retornar novos tokens
+                }
+                else
+                {
+                    Console.WriteLine("❌ Falha ao renovar tokens. Faça login novamente.");
+                    Console.ReadKey();
+                    return (string.Empty, string.Empty); // Tokens inválidos
+                }
+            }
+        }
+
+
+        public class AuthResponse
+            {
+                public string AccessToken { get; set; } = string.Empty; 
+                public string RefreshToken { get; set; } = string.Empty;
+                public UserResponse User { get; set; } = new UserResponse();
             }
 
-            Console.ReadKey();
+        public class UserResponse
+        {
+            public int Id { get; set; }
+            public string UserName { get; set; } = string.Empty;
+            public string Email { get; set; } = string.Empty;
         }
+
+        public class LoginDto
+        {
+            public string Email { get; set; } = string.Empty;
+            public string Password { get; set; } = string.Empty;
+        }
+
+        public class RegisterDto
+        {
+            public string UserName { get; set; } = string.Empty;
+            public string Email { get; set; } = string.Empty;
+            public string Password { get; set; } = string.Empty;
+        }
+
+        public class RefreshRequest
+        {
+            public string RefreshToken { get; set; } = string.Empty;
+        }      
     }
 }

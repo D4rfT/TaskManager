@@ -12,7 +12,10 @@ namespace Domain.Entities
         public string PasswordSalt { get; private set; }
         public DateTime CreatedAt { get; private set; }
         public DateTime UpdatedAt { get; private set; }
+        public string RefreshToken { get; private set; } = string.Empty;
+        public DateTime RefreshTokenExpiry { get; private set; }
         public ICollection<TaskItem> Tasks { get; private set; }
+        
 
         private User() { }
 
@@ -24,6 +27,8 @@ namespace Domain.Entities
             PasswordSalt = string.Empty;
             CreatedAt = DateTime.UtcNow;
             UpdatedAt = DateTime.UtcNow;
+            RefreshToken = string.Empty;
+            RefreshTokenExpiry = DateTime.UtcNow;
             Tasks = new List<TaskItem>();
         }
 
@@ -44,5 +49,18 @@ namespace Domain.Entities
                 return computedHash.SequenceEqual(Convert.FromBase64String(PasswordHash));
             }
         }
+        public void SetRefreshToken(string refreshToken, DateTime expiry)
+        {
+            RefreshToken = refreshToken;
+            RefreshTokenExpiry = expiry;
+            UpdatedAt = DateTime.UtcNow;
+        }
+        public bool IsRefreshTokenValid(string refreshToken)
+        {
+            return !string.IsNullOrEmpty(RefreshToken) &&
+                   RefreshToken == refreshToken &&
+                   RefreshTokenExpiry > DateTime.UtcNow;
+        }
+
     }
 }
