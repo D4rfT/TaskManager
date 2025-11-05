@@ -66,10 +66,10 @@ namespace API.Controllers
 
                 var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == loginDto.Email);
                 if (user == null)
-                    return Unauthorized(new { message = "Credenciais inválidas" });
+                    return Unauthorized(new { message = "Login ou senha inválidos" });
 
                 if (!user.VerifyPasswordHash(loginDto.Password))
-                    return Unauthorized(new { message = "Credenciais inválidas" });
+                    return Unauthorized(new { message = "Login ou senha inválidos" });
 
                 var accessToken = GenerateJwtToken(user);
                 var refreshToken = GenerateRefreshToken();
@@ -157,13 +157,33 @@ namespace API.Controllers
             }
         }
 
+
+        /// Gera um JWT (JSON Web Token) de acesso para o usuário autenticado.
+        /// O token contém as claims do usuário e expira em 2 horas.
+        /// Retorna string contendo o JWT token codificado pronto para uso
+        /// 
+        /// Detalhes da implementação:
+        /// - Usa HMAC-SHA256 para assinatura do token
+        /// - Inclui claims: ID, Nome de usuário e Email
+        /// - Tempo de expiração: 2 horas a partir do momento atual (UTC)
+        /// - Configura Issuer e Audience baseados nas configurações da aplicação
+        /// - A chave de assinatura é obtida das configurações (appsettings.json)
+        /// 
+        /// Estrutura do token:
+        /// - ClaimTypes.NameIdentifier: ID do usuário
+        /// - ClaimTypes.Name: Nome de usuário
+        /// - ClaimTypes.Email: Email do usuário
+
         private string GenerateJwtToken(User user)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
+            // Obtém a chave secreta das configurações e converte para array de bytes
+            // A chave é usada para assinar o token e verificar sua autenticidade
             var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"]);
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {
+                // Define a identidade do token com as claims (informações) do usuário
                 Subject = new ClaimsIdentity(new[]
                 {
                     new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
@@ -173,19 +193,38 @@ namespace API.Controllers
                 Expires = DateTime.UtcNow.AddHours(2),
                 Issuer = _configuration["Jwt:Issuer"],
                 Audience = _configuration["Jwt:Audience"],
+                // Define as credenciais de assinatura usando a chave secreta
                 SigningCredentials = new SigningCredentials(
+                    // Cria uma chave simétrica a partir dos bytes e define o algoritmo de assinatura como HMAC com SHA256
                     new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
             };
-
+            // Cria o token JWT baseado na descrição fornecida
             var token = tokenHandler.CreateToken(tokenDescriptor);
+
+            // Converte o token para uma string formatada (xxxxx.yyyyy.zzzzz)
             return tokenHandler.WriteToken(token);
         }
 
+
+        /// Gera um refresh token criptograficamente seguro para renovação de autenticação.
+        /// Refresh tokens têm validade mais longa (7 dias) e são usados para obter
+        /// novos tokens de acesso sem exigir nova autenticação do usuário.
+        /// Retorna String Base64 contendo um token aleatório seguro de 64 bytes
+        /// 
+        /// Características de segurança:
+        /// - Gera 64 bytes de dados aleatórios criptograficamente fortes
+        /// - Usa RandomNumberGenerator para garantir aleatoriedade imprevisível
+        /// - Converte para Base64 para facilitar armazenamento e transmissão
+        /// - Tamanho final: ~88 caracteres Base64
+        /// 
         private string GenerateRefreshToken()
         {
             var randomNumber = new byte[64];
             using var rng = RandomNumberGenerator.Create();
             rng.GetBytes(randomNumber);
+
+            // Converte os bytes aleatórios para uma string em Base64
+            // Base64 é usado porque é seguro para URLs e fácil de armazenar
             return Convert.ToBase64String(randomNumber);
         }
     }

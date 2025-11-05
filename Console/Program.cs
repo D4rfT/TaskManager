@@ -85,64 +85,84 @@ namespace TaskManager.ConsoleApp
                             accessToken, refreshToken);
                         accessToken = tokens1.newAccessToken;
                         refreshToken = tokens1.newRefreshToken;
+
                         break;
+
                     case "2":
                         var tokens2 = await ExecuteWithTokenRefresh(httpClient, () => ListAllTasksAsync(httpClient),
                             accessToken, refreshToken);
                         accessToken = tokens2.newAccessToken;
                         refreshToken = tokens2.newRefreshToken;
+
                         break;
+
                     case "3":
                         var tokens3 = await ExecuteWithTokenRefresh(httpClient, () => GetTaskByIdAsync(httpClient),
                             accessToken, refreshToken);
                         accessToken = tokens3.newAccessToken;
                         refreshToken = tokens3.newRefreshToken;
+
                         break;
+
                     case "4":
                         var tokens4 = await ExecuteWithTokenRefresh(httpClient, () => GetCompletedTasksAsync(httpClient),
                             accessToken, refreshToken);
                         accessToken = tokens4.newAccessToken;
                         refreshToken = tokens4.newRefreshToken;
+
                         break;
+
                     case "5":
                         var tokens5 = await ExecuteWithTokenRefresh(httpClient, () => GetPendingTasksAsync(httpClient),
                             accessToken, refreshToken);
                         accessToken = tokens5.newAccessToken;
                         refreshToken = tokens5.newRefreshToken;
+
                         break;
+
                     case "6":
                         var tokens6 = await ExecuteWithTokenRefresh(httpClient, () => GetOverdueTasksAsync(httpClient),
                             accessToken, refreshToken);
                         accessToken = tokens6.newAccessToken;
                         refreshToken = tokens6.newRefreshToken;
+
                         break;
+
                     case "7":
                         var tokens7 = await ExecuteWithTokenRefresh(httpClient, () => UpdateTaskAsync(httpClient),
                             accessToken, refreshToken);
                         accessToken = tokens7.newAccessToken;
                         refreshToken = tokens7.newRefreshToken;
+
                         break;
+
                     case "8":
                         var tokens8 = await ExecuteWithTokenRefresh(httpClient, () => DeleteTaskAsync(httpClient),
                             accessToken, refreshToken);
                         accessToken = tokens8.newAccessToken;
                         refreshToken = tokens8.newRefreshToken;
-                        break;              
+
+                        break;  
+                        
                     case "9":
-                        // ✅ LOGOUT REAL - REVOGAR TOKENS
+                        //LOGOUT REAL - REVOGAR TOKENS
                         await LogoutAsync(httpClient, accessToken);
                         httpClient.DefaultRequestHeaders.Authorization = null;
                         accessToken = string.Empty;
                         refreshToken = string.Empty;
                         currentUser = string.Empty;
                         continueRunning = false;
+
                         break;
+
                     case "0":
                         continueRunning = false;
                         break;
+
                     default:
                         Console.WriteLine("Opção inválida!");
                         Console.ReadKey();
+
                         break;
                 }
             }
@@ -745,6 +765,11 @@ namespace TaskManager.ConsoleApp
             Console.ReadKey();
         }
 
+        // Define um método assíncrono que retorna uma tupla com 4 valores:
+        // - success: indica se o login foi bem-sucedido
+        // - accessToken: token de acesso JWT
+        // - refreshToken: token de renovação
+        // - userName: nome do usuário autenticado
         static async Task<(bool success, string accessToken, string refreshToken, string userName)> HandleLoginAsync(HttpClient httpClient)
         {
             Console.Clear();
@@ -758,15 +783,23 @@ namespace TaskManager.ConsoleApp
 
             try
             {
+                // Cria um objeto DTO (Data Transfer Object) com os dados de login
                 var loginDto = new LoginDto { Email = email, Password = password };
+                // Serializa o objeto loginDto para JSON
                 var json = JsonSerializer.Serialize(loginDto);
+                // Cria o conteúdo da requisição HTTP com encoding UTF-8 e tipo application/json
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
+                // Faz uma requisição POST assíncrona para o endpoint de login da API
                 var response = await httpClient.PostAsync("/api/auth/login", content);
 
+                // Verifica se a resposta da API foi bem-sucedida (status 200-299)
                 if (response.IsSuccessStatusCode)
                 {
                     var responseContent = await response.Content.ReadAsStringAsync();
+
+                    // Desserializa o JSON da resposta para um objeto AuthResponse
+                    // PropertyNameCaseInsensitive = true permite que propriedades com diferentes caixas funcionem
                     var authResponse = JsonSerializer.Deserialize<AuthResponse>(responseContent,
                         new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
@@ -776,12 +809,15 @@ namespace TaskManager.ConsoleApp
 
                     Console.WriteLine($"\n Login realizado com sucesso! Bem-vindo, {userName}!");
                     Console.ReadKey();
+
+                    // Retorna os dados do login bem-sucedido
                     return (true, accessToken, refreshToken, userName);
                 }
                 else
                 {
                     Console.WriteLine("\n Credenciais inválidas!");
                     Console.ReadKey();
+
                     return (false, string.Empty, string.Empty, string.Empty);
                 }
             }
@@ -902,7 +938,7 @@ namespace TaskManager.ConsoleApp
             catch (HttpRequestException ex) when (ex.Message.Contains("401"))
             {
                 // Token expirado - tentar renovar
-                Console.WriteLine("\n🔁 Token expirado, renovando...");
+                Console.WriteLine("\n Token expirado, renovando...");
 
                 var (success, newAccessToken, newRefreshToken) = await RefreshTokensAsync(httpClient, currentRefreshToken);
 
@@ -917,7 +953,7 @@ namespace TaskManager.ConsoleApp
                 }
                 else
                 {
-                    Console.WriteLine("❌ Falha ao renovar tokens. Faça login novamente.");
+                    Console.WriteLine(" Falha ao renovar tokens. Faça login novamente.");
                     Console.ReadKey();
                     return (string.Empty, string.Empty); // Tokens inválidos
                 }
