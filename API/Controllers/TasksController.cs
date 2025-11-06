@@ -21,11 +21,16 @@ namespace API.Controllers
 
         private int GetUserId()
         {
+            // Busca a claim do tipo NameIdentifier
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            // Verifica se a claim existe E se consegue converter o valor para int
             if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
             {
                 throw new UnauthorizedAccessException("User ID não encontrado no token");
             }
+
+            // Verifica se a claim existe E se consegue converter o valor para int
             return userId;
         }
 

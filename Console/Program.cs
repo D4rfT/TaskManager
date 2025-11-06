@@ -74,6 +74,7 @@ namespace TaskManager.ConsoleApp
                 Console.WriteLine("8. Deletar Task");
                 Console.WriteLine("9. Logout");
                 Console.WriteLine("0. Sair");
+                Console.WriteLine("99. TESTE Token");
                 Console.Write("\nEscolha uma opção: ");
 
                 var option = Console.ReadLine();
@@ -155,9 +156,17 @@ namespace TaskManager.ConsoleApp
 
                         break;
 
+                    case "99":
+                        await TestTokenExpiration(httpClient);
+
+                        break;
+
                     case "0":
                         continueRunning = false;
                         break;
+
+
+
 
                     default:
                         Console.WriteLine("Opção inválida!");
@@ -928,38 +937,90 @@ namespace TaskManager.ConsoleApp
         }
 
         static async Task<(string newAccessToken, string newRefreshToken)> ExecuteWithTokenRefresh(
-            HttpClient httpClient, Func<Task> action, string currentAccessToken, string currentRefreshToken)
+    HttpClient httpClient, Func<Task> action, string currentAccessToken, string currentRefreshToken)
         {
             try
             {
+                Console.WriteLine($"🔍 DEBUG: Executando ação com token: {currentAccessToken?.Substring(0, 20)}...");
                 await action();
-                return (currentAccessToken, currentRefreshToken); // Tokens não mudaram
+                Console.WriteLine("🔍 DEBUG: Ação executada com sucesso");
+                return (currentAccessToken, currentRefreshToken);
             }
-            catch (HttpRequestException ex) when (ex.Message.Contains("401"))
+            catch (HttpRequestException ex)
             {
-                // Token expirado - tentar renovar
-                Console.WriteLine("\n Token expirado, renovando...");
+                // ✅ LOG DETALHADO para ver TUDO
+                Console.WriteLine($"🔍 DEBUG: HttpRequestException capturada!");
+                Console.WriteLine($"🔍 DEBUG: StatusCode: {ex.StatusCode}");
+                Console.WriteLine($"🔍 DEBUG: Mensagem: {ex.Message}");
+                Console.WriteLine($"🔍 DEBUG: StackTrace: {ex.StackTrace}");
 
-                var (success, newAccessToken, newRefreshToken) = await RefreshTokensAsync(httpClient, currentRefreshToken);
-
-                if (success)
+                if (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                 {
-                    httpClient.DefaultRequestHeaders.Authorization =
-                        new AuthenticationHeaderValue("Bearer", newAccessToken);
+                    Console.WriteLine("\n🔁 Token expirado, renovando...");
+                    var (success, newAccessToken, newRefreshToken) = await RefreshTokensAsync(httpClient, currentRefreshToken);
 
-                    Console.WriteLine(" Tokens renovados! Executando novamente...");
-                    await action();
-                    return (newAccessToken, newRefreshToken); // Retornar novos tokens
+                    if (success)
+                    {
+                        httpClient.DefaultRequestHeaders.Authorization =
+                            new AuthenticationHeaderValue("Bearer", newAccessToken);
+                        Console.WriteLine("✅ Tokens renovados! Executando novamente...");
+                        await action();
+                        return (newAccessToken, newRefreshToken);
+                    }
+                    else
+                    {
+                        Console.WriteLine("❌ Falha ao renovar tokens.");
+                        return (string.Empty, string.Empty);
+                    }
                 }
                 else
                 {
-                    Console.WriteLine(" Falha ao renovar tokens. Faça login novamente.");
-                    Console.ReadKey();
-                    return (string.Empty, string.Empty); // Tokens inválidos
+                    Console.WriteLine($"❌ Erro HTTP diferente: {ex.StatusCode}");
+                    throw; // Re-lança outros erros HTTP
                 }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"🔍 DEBUG: Outra exceção: {ex.GetType().Name}: {ex.Message}");
+                throw; // Re-lança outras exceções
             }
         }
 
+        // Método temporário para testar token
+        static async Task TestTokenExpiration(HttpClient httpClient)
+        {
+            try
+            {
+                Console.WriteLine("🔍 TESTE: Verificando se token funciona...");
+
+                // ✅ PEGUE O TOKEN ATUAL PARA DEBUG
+                var currentToken = httpClient.DefaultRequestHeaders.Authorization?.Parameter;
+                if (!string.IsNullOrEmpty(currentToken))
+                {
+                    Console.WriteLine($"🔍 TESTE: Token atual: {currentToken.Substring(0, 20)}...");
+                }
+
+                var response = await httpClient.GetAsync("/api/tasks");
+                Console.WriteLine($"🔍 TESTE: Status da resposta: {response.StatusCode}");
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"🔍 TESTE: Conteúdo do erro: {content}");
+                }
+                else
+                {
+                    Console.WriteLine("✅ TESTE: Token ainda válido!");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"🔍 TESTE: Exceção: {ex.GetType().Name}: {ex.Message}");
+            }
+
+            Console.WriteLine("\n🔍 Pressione qualquer tecla para continuar...");
+            Console.ReadKey();
+        }
 
         public class AuthResponse
             {

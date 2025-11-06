@@ -157,6 +157,37 @@ namespace API.Controllers
             }
         }
 
+        private string GenerateJwtToken(User user)
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"]);
+
+            // ✅ ADICIONE UM LOG TEMPORÁRIO:
+            Console.WriteLine($"🔍 DEBUG: Gerando token que expira em: {DateTime.UtcNow.AddSeconds(10)}");
+
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(new[]
+                {
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(ClaimTypes.Name, user.UserName),
+            new Claim(ClaimTypes.Email, user.Email)
+        }),
+                Expires = DateTime.UtcNow.AddSeconds(10), // ← 10 SEGUNDOS!
+                Issuer = _configuration["Jwt:Issuer"],
+                Audience = _configuration["Jwt:Audience"],
+                SigningCredentials = new SigningCredentials(
+                    new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+            };
+
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+
+            // ✅ LOG DO TOKEN GERADO (apenas primeiros chars):
+            var tokenString = tokenHandler.WriteToken(token);
+            Console.WriteLine($"🔍 DEBUG: Token gerado: {tokenString.Substring(0, 50)}...");
+
+            return tokenString;
+        }
 
         /// Gera um JWT (JSON Web Token) de acesso para o usuário autenticado.
         /// O token contém as claims do usuário e expira em 2 horas.
@@ -174,36 +205,36 @@ namespace API.Controllers
         /// - ClaimTypes.Name: Nome de usuário
         /// - ClaimTypes.Email: Email do usuário
 
-        private string GenerateJwtToken(User user)
-        {
-            var tokenHandler = new JwtSecurityTokenHandler();
-            // Obtém a chave secreta das configurações e converte para array de bytes
-            // A chave é usada para assinar o token e verificar sua autenticidade
-            var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"]);
+        //private string GenerateJwtToken(User user)
+        //{
+        //    var tokenHandler = new JwtSecurityTokenHandler();
+        //    // Obtém a chave secreta das configurações e converte para array de bytes
+        //    // A chave é usada para assinar o token e verificar sua autenticidade
+        //    var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"]);
 
-            var tokenDescriptor = new SecurityTokenDescriptor
-            {
-                // Define a identidade do token com as claims (informações) do usuário
-                Subject = new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                    new Claim(ClaimTypes.Name, user.UserName),
-                    new Claim(ClaimTypes.Email, user.Email)
-                }),
-                Expires = DateTime.UtcNow.AddHours(2),
-                Issuer = _configuration["Jwt:Issuer"],
-                Audience = _configuration["Jwt:Audience"],
-                // Define as credenciais de assinatura usando a chave secreta
-                SigningCredentials = new SigningCredentials(
-                    // Cria uma chave simétrica a partir dos bytes e define o algoritmo de assinatura como HMAC com SHA256
-                    new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-            };
-            // Cria o token JWT baseado na descrição fornecida
-            var token = tokenHandler.CreateToken(tokenDescriptor);
+        //    var tokenDescriptor = new SecurityTokenDescriptor
+        //    {
+        //        // Define a identidade do token com as claims (informações) do usuário
+        //        Subject = new ClaimsIdentity(new[]
+        //        {
+        //            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+        //            new Claim(ClaimTypes.Name, user.UserName),
+        //            new Claim(ClaimTypes.Email, user.Email)
+        //        }),
+        //        Expires = DateTime.UtcNow.AddSeconds(10),
+        //        Issuer = _configuration["Jwt:Issuer"],
+        //        Audience = _configuration["Jwt:Audience"],
+        //        // Define as credenciais de assinatura usando a chave secreta
+        //        SigningCredentials = new SigningCredentials(
+        //            // Cria uma chave simétrica a partir dos bytes e define o algoritmo de assinatura como HMAC com SHA256
+        //            new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+        //    };
+        //    // Cria o token JWT baseado na descrição fornecida
+        //    var token = tokenHandler.CreateToken(tokenDescriptor);
 
-            // Converte o token para uma string formatada (xxxxx.yyyyy.zzzzz)
-            return tokenHandler.WriteToken(token);
-        }
+        //    // Converte o token para uma string formatada (xxxxx.yyyyy.zzzzz)
+        //    return tokenHandler.WriteToken(token);
+        //}
 
 
         /// Gera um refresh token criptograficamente seguro para renovação de autenticação.
