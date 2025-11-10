@@ -110,6 +110,18 @@
         }
       }
     },
+    "/api/Auth/test-token-generation": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/Tasks": {
       "get": {
         "tags": [

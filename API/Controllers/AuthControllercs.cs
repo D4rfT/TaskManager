@@ -162,18 +162,16 @@ namespace API.Controllers
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"]);
 
-            // ✅ ADICIONE UM LOG TEMPORÁRIO:
-            Console.WriteLine($"🔍 DEBUG: Gerando token que expira em: {DateTime.UtcNow.AddSeconds(10)}");
-
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(new[]
                 {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Name, user.UserName),
-            new Claim(ClaimTypes.Email, user.Email)
+            new Claim(ClaimTypes.Email, user.Email),
+            new Claim("jti", Guid.NewGuid().ToString()) // JWT ID único
         }),
-                Expires = DateTime.UtcNow.AddSeconds(10), // ← 10 SEGUNDOS!
+                Expires = DateTime.UtcNow.AddHours(2),
                 Issuer = _configuration["Jwt:Issuer"],
                 Audience = _configuration["Jwt:Audience"],
                 SigningCredentials = new SigningCredentials(
@@ -181,12 +179,15 @@ namespace API.Controllers
             };
 
             var token = tokenHandler.CreateToken(tokenDescriptor);
+            return tokenHandler.WriteToken(token);
+        }
 
-            // ✅ LOG DO TOKEN GERADO (apenas primeiros chars):
-            var tokenString = tokenHandler.WriteToken(token);
-            Console.WriteLine($"🔍 DEBUG: Token gerado: {tokenString.Substring(0, 50)}...");
-
-            return tokenString;
+        private string GenerateRefreshToken()
+        {
+            var randomNumber = new byte[64];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(randomNumber);
+            return Convert.ToBase64String(randomNumber);
         }
 
         /// Gera um JWT (JSON Web Token) de acesso para o usuário autenticado.

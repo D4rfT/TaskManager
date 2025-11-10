@@ -58,6 +58,16 @@
     "ReturnTypes": []
   },
   {
+    "ContainingType": "API.Controllers.AuthController",
+    "Method": "TestTokenGeneration",
+    "RelativePath": "api/Auth/test-token-generation",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
     "ContainingType": "API.Controllers.TasksController",
     "Method": "GetAll",
     "RelativePath": "api/Tasks",

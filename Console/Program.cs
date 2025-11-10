@@ -16,80 +16,89 @@ namespace TaskManager.ConsoleApp
             var httpClient = new HttpClient();
             httpClient.BaseAddress = new Uri("https://localhost:7198");
 
-            string accessToken = string.Empty;
-            string refreshToken = string.Empty;
-            string currentUser = string.Empty;
-
             // TELA DE LOGIN/REGISTRO
-            bool authenticated = false;
-            while (!authenticated)
+            bool shouldExit = false;
+
+            while (!shouldExit)
             {
-                Console.Clear();
-                Console.WriteLine("=== TASK MANAGER - LOGIN ===");
-                Console.WriteLine("1. Fazer Login");
-                Console.WriteLine("2. Registrar");
-                Console.WriteLine("0. Sair");
-                Console.Write("\nEscolha uma opção: ");
+                string accessToken = string.Empty;
+                string refreshToken = string.Empty;
+                string currentUser = string.Empty;
+                bool authenticated = false;
 
-                var authOption = Console.ReadLine();
-
-                switch (authOption)
+                // === TELA DE LOGIN ===
+                while (!authenticated && !shouldExit)
                 {
-                    case "1":
-                        var (success, newAccessToken, newRefreshToken, userName) = await HandleLoginAsync(httpClient);
-                        if (success)
-                        {
-                            accessToken = newAccessToken;
-                            refreshToken = newRefreshToken;
-                            currentUser = userName;
-                            httpClient.DefaultRequestHeaders.Authorization =
-                                new AuthenticationHeaderValue("Bearer", accessToken);
-                            authenticated = true;
-                        }
-                        break;
-                    case "2":
-                        await HandleRegisterAsync(httpClient);
-                        break;
-                    case "0":
-                        return;
-                    default:
-                        Console.WriteLine("Opção inválida!");
-                        Console.ReadKey();
-                        break;
+                    Console.Clear();
+                    Console.WriteLine("=== TASK MANAGER - LOGIN ===");
+                    Console.WriteLine("1. Fazer Login");
+                    Console.WriteLine("2. Registrar");
+                    Console.WriteLine("0. Sair do Programa");
+                    Console.Write("\nEscolha uma opção: ");
+
+                    var authOption = Console.ReadLine();
+
+                    switch (authOption)
+                    {
+                        case "1":
+                            var (success, newAccessToken, newRefreshToken, userName) = await HandleLoginAsync(httpClient);
+                            if (success)
+                            {
+                                accessToken = newAccessToken;
+                                refreshToken = newRefreshToken;
+                                currentUser = userName;
+                                httpClient.DefaultRequestHeaders.Authorization =
+                                    new AuthenticationHeaderValue("Bearer", accessToken);
+                                authenticated = true;
+                            }
+                            break;
+                        case "2":
+                            await HandleRegisterAsync(httpClient);
+                            break;
+                        case "0":
+                            shouldExit = true;
+                            break;
+                        default:
+                            Console.WriteLine("Opção inválida!");
+                            Console.ReadKey();
+                            break;
+                    }
                 }
-            }
 
-            bool continueRunning = true;
-            while (continueRunning)
-            {
-                Console.Clear();
-                Console.WriteLine($"=== TASK MANAGER - Usuário: {currentUser} ===");
-                Console.WriteLine("1. Criar Nova Task");
-                Console.WriteLine("2. Listar Todas as Tasks");
-                Console.WriteLine("3. Buscar Task por ID");
-                Console.WriteLine("4. Listar Tasks Concluídas");
-                Console.WriteLine("5. Listar Tasks Pendentes");
-                Console.WriteLine("6. Listar Tasks Atrasadas");
-                Console.WriteLine("7. Atualizar Task");
-                Console.WriteLine("8. Deletar Task");
-                Console.WriteLine("9. Logout");
-                Console.WriteLine("0. Sair");
-                Console.WriteLine("99. TESTE Token");
-                Console.Write("\nEscolha uma opção: ");
-
-                var option = Console.ReadLine();
-
-                switch (option)
+                // === MENU PRINCIPAL === (só entra se authenticated = true)
+                if (authenticated && !shouldExit)
                 {
-                    case "1":
-                        var tokens1 = await ExecuteWithTokenRefresh(httpClient, () => CreateTaskAsync(httpClient),
-                            accessToken, refreshToken);
-                        accessToken = tokens1.newAccessToken;
-                        refreshToken = tokens1.newRefreshToken;
+                    bool inMainMenu = true;
 
-                        break;
+                    while (inMainMenu && !shouldExit)
+                    {
+                        Console.Clear();
+                        Console.WriteLine($"=== TASK MANAGER - Usuário: {currentUser} ===");
+                        Console.WriteLine("1. Criar Nova Task");
+                        Console.WriteLine("2. Listar Todas as Tasks");
+                        Console.WriteLine("3. Buscar Task por ID");
+                        Console.WriteLine("4. Listar Tasks Concluídas");
+                        Console.WriteLine("5. Listar Tasks Pendentes");
+                        Console.WriteLine("6. Listar Tasks Atrasadas");
+                        Console.WriteLine("7. Atualizar Task");
+                        Console.WriteLine("8. Deletar Task");
+                        Console.WriteLine("9. Logout");
+                        Console.WriteLine("0. Sair do Programa");
+                        Console.WriteLine("99. TESTE Token");
+                        Console.Write("\nEscolha uma opção: ");
 
-                    case "2":
+                        var option = Console.ReadLine();
+
+                        switch (option)
+                        {
+                            case "1":
+                                var tokens1 = await ExecuteWithTokenRefresh(httpClient, () => CreateTaskAsync(httpClient),
+                                    accessToken, refreshToken);
+                                accessToken = tokens1.newAccessToken;
+                                refreshToken = tokens1.newRefreshToken;
+                                break;
+
+                            case "2":
                         var tokens2 = await ExecuteWithTokenRefresh(httpClient, () => ListAllTasksAsync(httpClient),
                             accessToken, refreshToken);
                         accessToken = tokens2.newAccessToken;
@@ -143,36 +152,29 @@ namespace TaskManager.ConsoleApp
                         accessToken = tokens8.newAccessToken;
                         refreshToken = tokens8.newRefreshToken;
 
-                        break;  
-                        
-                    case "9":
-                        //LOGOUT REAL - REVOGAR TOKENS
-                        await LogoutAsync(httpClient, accessToken);
-                        httpClient.DefaultRequestHeaders.Authorization = null;
-                        accessToken = string.Empty;
-                        refreshToken = string.Empty;
-                        currentUser = string.Empty;
-                        continueRunning = false;
-
                         break;
 
-                    case "99":
-                        await TestTokenExpiration(httpClient);
+                            case "9":
+                                // LOGOUT - volta para tela de login
+                                await LogoutAsync(httpClient, accessToken);
+                                httpClient.DefaultRequestHeaders.Authorization = null;
+                                inMainMenu = false; // ← Sai do menu principal, volta para login
+                                break;
 
-                        break;
+                            case "0":
+                                shouldExit = true; // ← Sai do programa completamente
+                                break;
 
-                    case "0":
-                        continueRunning = false;
-                        break;
+                            case "99":
+                                await TestTokenExpiration(httpClient);
+                                break;
 
-
-
-
-                    default:
-                        Console.WriteLine("Opção inválida!");
-                        Console.ReadKey();
-
-                        break;
+                            default:
+                                Console.WriteLine("Opção inválida!");
+                                Console.ReadKey();
+                                break;
+                        }
+                    }
                 }
             }
 
@@ -792,23 +794,15 @@ namespace TaskManager.ConsoleApp
 
             try
             {
-                // Cria um objeto DTO (Data Transfer Object) com os dados de login
                 var loginDto = new LoginDto { Email = email, Password = password };
-                // Serializa o objeto loginDto para JSON
                 var json = JsonSerializer.Serialize(loginDto);
-                // Cria o conteúdo da requisição HTTP com encoding UTF-8 e tipo application/json
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                // Faz uma requisição POST assíncrona para o endpoint de login da API
                 var response = await httpClient.PostAsync("/api/auth/login", content);
 
-                // Verifica se a resposta da API foi bem-sucedida (status 200-299)
                 if (response.IsSuccessStatusCode)
                 {
                     var responseContent = await response.Content.ReadAsStringAsync();
-
-                    // Desserializa o JSON da resposta para um objeto AuthResponse
-                    // PropertyNameCaseInsensitive = true permite que propriedades com diferentes caixas funcionem
                     var authResponse = JsonSerializer.Deserialize<AuthResponse>(responseContent,
                         new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
@@ -816,23 +810,21 @@ namespace TaskManager.ConsoleApp
                     var refreshToken = authResponse.RefreshToken;
                     var userName = authResponse.User.UserName;
 
-                    Console.WriteLine($"\n Login realizado com sucesso! Bem-vindo, {userName}!");
+                    Console.WriteLine($"\nLogin realizado com sucesso! Bem-vindo, {userName}!");
                     Console.ReadKey();
 
-                    // Retorna os dados do login bem-sucedido
                     return (true, accessToken, refreshToken, userName);
                 }
                 else
                 {
-                    Console.WriteLine("\n Credenciais inválidas!");
+                    Console.WriteLine("\nCredenciais inválidas!");
                     Console.ReadKey();
-
                     return (false, string.Empty, string.Empty, string.Empty);
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"\n Erro: {ex.Message}");
+                Console.WriteLine($"\nErro: {ex.Message}");
                 Console.ReadKey();
                 return (false, string.Empty, string.Empty, string.Empty);
             }
@@ -941,48 +933,30 @@ namespace TaskManager.ConsoleApp
         {
             try
             {
-                Console.WriteLine($"🔍 DEBUG: Executando ação com token: {currentAccessToken?.Substring(0, 20)}...");
                 await action();
-                Console.WriteLine("🔍 DEBUG: Ação executada com sucesso");
                 return (currentAccessToken, currentRefreshToken);
             }
-            catch (HttpRequestException ex)
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
-                // ✅ LOG DETALHADO para ver TUDO
-                Console.WriteLine($"🔍 DEBUG: HttpRequestException capturada!");
-                Console.WriteLine($"🔍 DEBUG: StatusCode: {ex.StatusCode}");
-                Console.WriteLine($"🔍 DEBUG: Mensagem: {ex.Message}");
-                Console.WriteLine($"🔍 DEBUG: StackTrace: {ex.StackTrace}");
+                Console.WriteLine("\nToken expirado, renovando...");
 
-                if (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                var (success, newAccessToken, newRefreshToken) = await RefreshTokensAsync(httpClient, currentRefreshToken);
+
+                if (success)
                 {
-                    Console.WriteLine("\n🔁 Token expirado, renovando...");
-                    var (success, newAccessToken, newRefreshToken) = await RefreshTokensAsync(httpClient, currentRefreshToken);
+                    httpClient.DefaultRequestHeaders.Authorization =
+                        new AuthenticationHeaderValue("Bearer", newAccessToken);
 
-                    if (success)
-                    {
-                        httpClient.DefaultRequestHeaders.Authorization =
-                            new AuthenticationHeaderValue("Bearer", newAccessToken);
-                        Console.WriteLine("✅ Tokens renovados! Executando novamente...");
-                        await action();
-                        return (newAccessToken, newRefreshToken);
-                    }
-                    else
-                    {
-                        Console.WriteLine("❌ Falha ao renovar tokens.");
-                        return (string.Empty, string.Empty);
-                    }
+                    Console.WriteLine("Tokens renovados! Executando novamente...");
+                    await action();
+                    return (newAccessToken, newRefreshToken);
                 }
                 else
                 {
-                    Console.WriteLine($"❌ Erro HTTP diferente: {ex.StatusCode}");
-                    throw; // Re-lança outros erros HTTP
+                    Console.WriteLine("Falha ao renovar tokens. Faça login novamente.");
+                    Console.ReadKey();
+                    return (string.Empty, string.Empty);
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"🔍 DEBUG: Outra exceção: {ex.GetType().Name}: {ex.Message}");
-                throw; // Re-lança outras exceções
             }
         }
 
@@ -991,34 +965,47 @@ namespace TaskManager.ConsoleApp
         {
             try
             {
-                Console.WriteLine("🔍 TESTE: Verificando se token funciona...");
+                Console.Clear();
+                Console.WriteLine("=== TESTE DE TOKEN ===");
 
-                // ✅ PEGUE O TOKEN ATUAL PARA DEBUG
+                // PEGAR O TOKEN ATUAL DO HEADER
                 var currentToken = httpClient.DefaultRequestHeaders.Authorization?.Parameter;
-                if (!string.IsNullOrEmpty(currentToken))
+
+                if (string.IsNullOrEmpty(currentToken))
                 {
-                    Console.WriteLine($"🔍 TESTE: Token atual: {currentToken.Substring(0, 20)}...");
+                    Console.WriteLine("❌ Nenhum token encontrado. Faça login primeiro.");
+                    Console.ReadKey();
+                    return;
                 }
 
-                var response = await httpClient.GetAsync("/api/tasks");
-                Console.WriteLine($"🔍 TESTE: Status da resposta: {response.StatusCode}");
+                // MOSTRAR TOKEN COMPLETO PARA COMPARAÇÃO
+                Console.WriteLine("🔍 TOKEN ATUAL COMPLETO:");
+                Console.WriteLine("═".PadRight(60, '═'));
+                Console.WriteLine(currentToken);
+                Console.WriteLine("═".PadRight(60, '═'));
+                Console.WriteLine($"📏 Tamanho: {currentToken.Length} caracteres");
 
-                if (!response.IsSuccessStatusCode)
+                // TESTAR SE O TOKEN FUNCIONA
+                Console.WriteLine("\n🔍 Testando acesso à API...");
+                var response = await httpClient.GetAsync("/api/tasks");
+
+                if (response.IsSuccessStatusCode)
                 {
-                    var content = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"🔍 TESTE: Conteúdo do erro: {content}");
+                    Console.WriteLine("Token está VÁLIDO e funcionando!");
                 }
                 else
                 {
-                    Console.WriteLine("✅ TESTE: Token ainda válido!");
+                    Console.WriteLine($"Token INVÁLIDO. Status: {response.StatusCode}");
+                    var content = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"Detalhes: {content}");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"🔍 TESTE: Exceção: {ex.GetType().Name}: {ex.Message}");
+                Console.WriteLine($"Erro durante o teste: {ex.Message}");
             }
 
-            Console.WriteLine("\n🔍 Pressione qualquer tecla para continuar...");
+            Console.WriteLine("\nPressione qualquer tecla para voltar ao menu...");
             Console.ReadKey();
         }
 
