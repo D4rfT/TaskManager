@@ -11,7 +11,6 @@ namespace TaskManager.Domain.Interfaces
         Task DeleteAsync(int id, int userId);
 
 
-        // Operações específicas de domínio
         Task<IEnumerable<TaskItem>> GetCompletedAsync(int userId);
         Task<IEnumerable<TaskItem>> GetPendingAsync(int userId);
         Task<IEnumerable<TaskItem>> GetOverdueAsync(int userId);

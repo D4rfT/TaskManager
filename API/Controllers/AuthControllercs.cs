@@ -249,16 +249,6 @@ namespace API.Controllers
         /// - Converte para Base64 para facilitar armazenamento e transmissão
         /// - Tamanho final: ~88 caracteres Base64
         /// 
-        private string GenerateRefreshToken()
-        {
-            var randomNumber = new byte[64];
-            using var rng = RandomNumberGenerator.Create();
-            rng.GetBytes(randomNumber);
-
-            // Converte os bytes aleatórios para uma string em Base64
-            // Base64 é usado porque é seguro para URLs e fácil de armazenar
-            return Convert.ToBase64String(randomNumber);
-        }
     }
     public class RefreshRequest
     {

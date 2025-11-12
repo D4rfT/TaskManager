@@ -26,7 +26,6 @@ builder.Services.AddDbContext<TaskContext>(options =>
 builder.Services.AddScoped<ITaskRepository, TaskRepository>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 
-// JWT Authentication - ? MOVIDO PARA ANTES DE builder.Build()
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -56,7 +55,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// ? ADICIONAR UseAuthentication() ANTES de UseAuthorization()
 app.UseAuthentication();
 app.UseAuthorization();
 

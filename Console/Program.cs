@@ -155,7 +155,6 @@ namespace TaskManager.ConsoleApp
                         break;
 
                             case "9":
-                                // LOGOUT - volta para tela de login
                                 await LogoutAsync(httpClient, accessToken);
                                 httpClient.DefaultRequestHeaders.Authorization = null;
                                 inMainMenu = false; // ← Sai do menu principal, volta para login
@@ -978,14 +977,12 @@ namespace TaskManager.ConsoleApp
                     return;
                 }
 
-                // MOSTRAR TOKEN COMPLETO PARA COMPARAÇÃO
                 Console.WriteLine("🔍 TOKEN ATUAL COMPLETO:");
                 Console.WriteLine("═".PadRight(60, '═'));
                 Console.WriteLine(currentToken);
                 Console.WriteLine("═".PadRight(60, '═'));
                 Console.WriteLine($"📏 Tamanho: {currentToken.Length} caracteres");
 
-                // TESTAR SE O TOKEN FUNCIONA
                 Console.WriteLine("\n🔍 Testando acesso à API...");
                 var response = await httpClient.GetAsync("/api/tasks");
 

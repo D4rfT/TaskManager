@@ -21,14 +21,12 @@ namespace AppServices.Services
 
         public async Task<TaskItem> CreateTaskAsync(string title, string description, DateTime dueDate, int userId)
         {
-            // Validar dados de entrada
             if (string.IsNullOrWhiteSpace(title))
                 throw new ArgumentException("Título não pode ser nulo ou vazio", nameof(title));
 
             if (dueDate < DateTime.UtcNow.Date)
                 throw new ArgumentException("Data de vencimento não pode ser no passado", nameof(dueDate));
 
-            // Criar a entidade de domínio
             var task = new TaskItem(title, description, dueDate, userId);
 
             return await _taskRepository.AddAsync(task);
@@ -45,10 +43,8 @@ namespace AppServices.Services
             if (dueDate < DateTime.UtcNow.Date)
                 throw new ArgumentException("Data de vencimento não pode ser no passado", nameof(dueDate));
 
-            // Buscar task existente
             var existingTask = await GetTaskByIdAsync(id, userId);
 
-            // Atualizar propriedades
             existingTask.Update(title, description, dueDate);
 
             await _taskRepository.UpdateAsync(existingTask);

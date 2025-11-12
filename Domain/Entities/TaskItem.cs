@@ -36,7 +36,6 @@ namespace TaskManager.Domain.Entities
             UserId = userId;
         }
 
-        // Métodos de domínio
         public void Update(string title, string description, DateTime dueDate)
         {
             if (title == null)
@@ -71,7 +70,6 @@ namespace TaskManager.Domain.Entities
             }
         }
 
-        // Validação de domínio
         public bool IsOverdue()
         {
             return !IsCompleted && DueDate < DateTime.UtcNow;
